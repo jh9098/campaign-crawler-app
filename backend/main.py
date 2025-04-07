@@ -1,7 +1,7 @@
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
-from .crawler import run_crawler
+from crawler import run_crawler
 
 app = FastAPI()
 
