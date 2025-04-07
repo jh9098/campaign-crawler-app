@@ -20,9 +20,16 @@ class CrawlRequest(BaseModel):
 
 @app.post("/crawl")
 async def crawl_handler(req: CrawlRequest):
-    hidden, public = run_crawler(
-        session_cookie=req.session_cookie,
-        selected_days=req.selected_days,
-        exclude_keywords=req.exclude_keywords
-    )
-    return {"hidden": hidden, "public": public}
+    print("🧾 받은 요청:", req)
+    try:
+        hidden, public = run_crawler(
+            session_cookie=req.session_cookie,
+            selected_days=req.selected_days,
+            exclude_keywords=req.exclude_keywords
+        )
+        print("✅ 크롤링 완료, hidden:", len(hidden), "public:", len(public))
+        return {"hidden": hidden, "public": public}
+    except Exception as e:
+        print("❌ 서버 내부 오류:", e)
+        return {"error": str(e)}
+
