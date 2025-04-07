@@ -5,7 +5,6 @@ from crawler import run_crawler
 
 app = FastAPI()
 
-# CORS 허용 (Netlify용)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["https://dbgapp.netlify.app"],
@@ -13,7 +12,6 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
-
 
 class CrawlRequest(BaseModel):
     session_cookie: str
