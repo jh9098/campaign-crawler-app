@@ -1,78 +1,132 @@
-# crawler.py
-
-import requests, re, time, urllib3
+import requests  
 from bs4 import BeautifulSoup
+import re
+import urllib3
+import time
 from concurrent.futures import ThreadPoolExecutor
 
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+
 MAIN_URL = "https://dbg.shopreview.co.kr/usr"
-DETAIL_URL = "https://dbg.shopreview.co.kr/usr/campaign_detail?csq={}"
+CAMPAIGN_URL_TEMPLATE = "https://dbg.shopreview.co.kr/usr/campaign_detail?csq={}"
 THREAD_COUNT = 4
 
 def get_public_campaigns(session):
     public_campaigns = set()
-    for _ in range(3):
+    for attempt in range(3):
         try:
-            res = session.get(MAIN_URL, verify=False, timeout=10)
-            soup = BeautifulSoup(res.text, "html.parser")
+            response = session.get(MAIN_URL, verify=False, timeout=15)
+            response.raise_for_status()
+            soup = BeautifulSoup(response.text, "html.parser")
             scripts = soup.find_all("script")
             for script in scripts:
                 matches = re.findall(r'data-csq=["\']?(\d+)', script.text)
                 public_campaigns.update(map(int, matches))
-            return public_campaigns
-        except:
-            time.sleep(3)
+            if public_campaigns:
+                return public_campaigns
+        except requests.exceptions.RequestException:
+            time.sleep(5)
     return set()
 
-def fetch_campaign(campaign_id, session, public_ids, dates, exclude_keywords):
-    url = DETAIL_URL.format(campaign_id)
+def fetch_campaign_data(campaign_id, session, public_campaigns, selected_days, exclude_keywords):
+    url = CAMPAIGN_URL_TEMPLATE.format(campaign_id)
     try:
-        res = session.get(url, verify=False, timeout=10)
-        soup = BeautifulSoup(res.text, "html.parser")
+        response = session.get(url, verify=False, timeout=15)
+        response.raise_for_status()
+        soup = BeautifulSoup(response.text, "html.parser")
         
         if soup.find("script", string="window.location.href = '/usr/login_form';"):
             return None
 
-        time_info = soup.find("button", class_="butn butn-success", disabled=True)
-        time_text = time_info.text.strip() if time_info else "참여 가능 시간 없음"
-        if not any(day in time_text for day in dates):
+        participation_time = soup.find("button", class_="butn butn-success", disabled=True)
+        participation_time = participation_time.text.strip() if participation_time else "참여 가능 시간 없음"
+        if "시에" in participation_time:
+            participation_time = participation_time.replace("시에", "시 00분에")
+
+        if not any(day in participation_time for day in selected_days):
             return None
 
-        product_name = soup.find("h3").text.strip() if soup.find("h3") else ""
+        product_name = soup.find("h3")
+        product_name = product_name.text.strip() if product_name else "상품명 없음"
+
         if any(keyword in product_name for keyword in exclude_keywords):
             return None
 
-        shop = soup.find("div", class_="col-sm-9")
-        shop_name = shop.find("img")["alt"].strip() if shop and shop.find("img") else "쇼핑몰 정보 없음"
+        price = "가격 정보 없음"
+        total_price_section = soup.find(string=re.compile("총 결제금액"))
+        if total_price_section:
+            price_text = total_price_section.find_next("div", style="text-align:right")
+            if price_text:
+                price_numeric = re.sub(r"[^\d]", "", price_text.text.strip())
+                price = price_numeric if price_numeric else "가격 정보 없음"
 
-        result = f"{shop_name} | {time_text} | {product_name} | {url}"
+        tobagi_points = "0 P"
+        tobagi_section = soup.find(string=re.compile("또바기 포인트"))
+        if tobagi_section:
+            points_text = tobagi_section.find_next("div", style="text-align:right")
+            if points_text:
+                tobagi_points = points_text.text.strip()
 
-        if campaign_id in public_ids:
+        product_type = "상품구분 없음"
+        delivery_sections = soup.find_all("div", class_="row col-sm4 col-12")
+        for section in delivery_sections:
+            title = section.find("div", class_="col-6")
+            value = section.find("div", style="text-align:right")
+            if title and value and "배송" in title.text:
+                product_type = value.text.strip()
+                break
+
+        shop_name = "쇼핑몰 정보 없음"
+        shop_section = soup.find("div", class_="col-sm-9")
+        if shop_section:
+            shop_img = shop_section.find("img")
+            if shop_img and "alt" in shop_img.attrs:
+                shop_name = shop_img["alt"].strip()
+
+        text_review = "포토 리뷰"
+        review_label = soup.find("label", class_="form-check-label", string="텍스트 리뷰")
+        if review_label:
+            text_review = "텍스트 리뷰"
+
+        result = f"{product_type} & {text_review} & {shop_name} & {price} & {tobagi_points} & {participation_time} & {product_name} & {url}"
+
+        if campaign_id in public_campaigns:
             return (None, result)
         return (result, None)
 
-    except:
+    except requests.exceptions.RequestException:
         return (None, None)
 
-def run_crawler(cookie: str, days: list[str], exclude_keywords: list[str]):
+def run_crawler(session_cookie, selected_days, exclude_keywords):
     session = requests.Session()
-    session.cookies.set("PHPSESSID", cookie)
+    session.cookies.set("PHPSESSID", session_cookie)
 
-    public_ids = get_public_campaigns(session)
-    if not public_ids:
-        return {"hidden": [], "public": []}
+    public_campaigns = get_public_campaigns(session)
+    if not public_campaigns:
+        return [], []
 
-    start_id = min(public_ids) - 100
-    end_id = max(public_ids) + 100
+    start_campaign_id = min(public_campaigns) - 100
+    end_campaign_id = max(public_campaigns) + 100
 
-    hidden, public = [], []
+    hidden_campaigns = []
+    public_campaign_details = []
+
     with ThreadPoolExecutor(max_workers=THREAD_COUNT) as executor:
-        futures = [executor.submit(fetch_campaign, cid, session, public_ids, days, exclude_keywords)
-                   for cid in range(start_id, end_id + 1)]
-        for f in futures:
-            r = f.result()
-            if r:
-                h, p = r
-                if h: hidden.append(h)
-                if p: public.append(p)
-    return {"hidden": hidden, "public": public}
+        futures = {
+            executor.submit(
+                fetch_campaign_data, cid, session, public_campaigns, selected_days, exclude_keywords
+            ): cid for cid in range(start_campaign_id, end_campaign_id + 1)
+        }
+        for future in futures:
+            result = future.result()
+            if result:
+                hidden_result, public_result = result
+                if hidden_result:
+                    hidden_campaigns.append(hidden_result)
+                if public_result:
+                    public_campaign_details.append(public_result)
+
+    hidden_campaigns = sorted(hidden_campaigns, key=lambda x: x.split(" & ")[5])
+    public_campaign_details = sorted(public_campaign_details, key=lambda x: x.split(" & ")[5])
+
+    return hidden_campaigns, public_campaign_details
