@@ -98,11 +98,15 @@ def fetch_campaign_data(campaign_id, session, public_campaigns, selected_days, e
         return (None, None)
 
 def run_crawler(session_cookie, selected_days, exclude_keywords):
+    print("✅ 크롤러 실행 시작")
     session = requests.Session()
     session.cookies.set("PHPSESSID", session_cookie)
 
     public_campaigns = get_public_campaigns(session)
+    print("📦 공개 캠페인 개수:", len(public_campaigns))
+    
     if not public_campaigns:
+        print("❌ 공개 캠페인이 없음")
         return [], []
 
     start_campaign_id = min(public_campaigns) - 100
