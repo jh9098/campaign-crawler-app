@@ -5,6 +5,7 @@ export default function App() {
   const [cookie, setCookie] = useState("");
   const [selectedDays, setSelectedDays] = useState([]);
   const [exclude, setExclude] = useState("");
+  const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
 
   const days = Array.from({ length: 31 }, (_, i) => `${String(i + 1).padStart(2, "0")}일`);
@@ -16,25 +17,54 @@ export default function App() {
   };
 
   const handleSubmit = async () => {
-    const response = await fetch("https://dbgapp.netlify.app/", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        session_cookie: cookie,
-        selected_days: selectedDays,
-        exclude_keywords: exclude.split(",").map((kw) => kw.trim()),
-      }),
-    });
-    const data = await response.json();
-    localStorage.setItem("result_hidden", JSON.stringify(data.hidden));
-    localStorage.setItem("result_public", JSON.stringify(data.public));
-    navigate("/result");
+    if (!cookie) {
+      alert("PHPSESSID를 입력해주세요.");
+      return;
+    }
+
+    if (selectedDays.length === 0) {
+      alert("참여 날짜를 하나 이상 선택해주세요.");
+      return;
+    }
+
+    setLoading(true);
+
+    try {
+      const response = await fetch("https://dbgapp.netlify.app/", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          session_cookie: cookie,
+          selected_days: selectedDays,
+          exclude_keywords: exclude.split(",").map((kw) => kw.trim()),
+        }),
+      });
+
+      if (!response.ok) {
+        console.error("❌ 서버 응답 실패:", response.status);
+        alert("서버 응답 실패: " + response.status);
+        return;
+      }
+
+      const data = await response.json();
+      console.log("✅ 크롤링 결과 수신 완료:", data);
+
+      localStorage.setItem("result_hidden", JSON.stringify(data.hidden));
+      localStorage.setItem("result_public", JSON.stringify(data.public));
+      navigate("/result");
+    } catch (error) {
+      console.error("❌ 오류 발생:", error);
+      alert("에러 발생: " + error.message);
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
     <div style={{ padding: 20 }}>
       <h2>📦 캠페인 필터링</h2>
-      <label>PHPSESSID:</label>
+
+      <label>PHPSESSID:</label><br />
       <input value={cookie} onChange={(e) => setCookie(e.target.value)} style={{ width: 300 }} /><br /><br />
 
       <label>참여 날짜 선택 (다중 가능):</label><br />
@@ -65,7 +95,13 @@ export default function App() {
         placeholder="이발기, 강아지, 깔창 등"
       /><br /><br />
 
-      <button onClick={handleSubmit}>✅ 실행하기</button>
+      <button onClick={handleSubmit} disabled={loading}>
+        {loading ? "⏳ 실행 중..." : "✅ 실행하기"}
+      </button>
+
+      {loading && (
+        <p style={{ color: "green", marginTop: 10 }}>⏳ 데이터를 불러오는 중입니다...</p>
+      )}
     </div>
   );
 }
