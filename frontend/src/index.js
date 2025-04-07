@@ -1,12 +1,11 @@
-<!DOCTYPE html>
-<html lang="ko">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>캠페인 크롤러</title>
-  </head>
-  <body>
-    <div id="root"></div>
-    <script type="module" src="/src/index.js"></script>
-  </body>
-</html>
+import React from 'react';
+import ReactDOM from 'react-dom/client';
+import App from './App.jsx';
+import { BrowserRouter } from 'react-router-dom';
+
+const root = ReactDOM.createRoot(document.getElementById('root')); // ✅ 괄호 짝 맞춰야 함
+root.render(
+  <BrowserRouter>
+    <App />
+  </BrowserRouter>
+);
