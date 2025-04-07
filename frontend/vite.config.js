@@ -1,10 +1,19 @@
-import { defineConfig } from 'vite'
-import react from '@vitejs/plugin-react'
+import { defineConfig } from "vite";
+import react from "@vitejs/plugin-react";
+import path from "path";
 
 export default defineConfig({
-  root: '.', // Netlify에서 frontend 기준이므로 그대로 두기
   plugins: [react()],
+  root: ".", // frontend 디렉토리에 있다면 그대로 "."
   build: {
-    outDir: 'dist'
-  }
-})
+    outDir: "dist",
+  },
+  resolve: {
+    alias: {
+      "@": path.resolve(__dirname, "./"),
+    },
+  },
+  server: {
+    port: 3000,
+  },
+});
