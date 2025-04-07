@@ -5,23 +5,25 @@ from crawler import run_crawler
 
 app = FastAPI()
 
+# CORS 허용 (Netlify용)
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Netlify와 연결용
+    allow_origins=["https://dbgapp.netlify.app/"],  # 또는 "https://dbgapp.netlify.app"
+    allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
 class CrawlRequest(BaseModel):
     session_cookie: str
-    selected_days: list[str]  # ["07일", "08일"]
-    exclude_keywords: list[str]  # ["이발기", "깔창"]
+    selected_days: list[str]
+    exclude_keywords: list[str]
 
 @app.post("/crawl")
-def crawl(data: CrawlRequest):
-    result = run_crawler(
-        cookie=data.session_cookie,
-        days=data.selected_days,
-        exclude_keywords=data.exclude_keywords
+async def crawl_handler(req: CrawlRequest):
+    hidden, public = run_crawler(
+        session_cookie=req.session_cookie,
+        selected_days=req.selected_days,
+        exclude_keywords=req.exclude_keywords
     )
-    return result
+    return {"hidden": hidden, "public": public}
