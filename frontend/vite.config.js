@@ -4,16 +4,12 @@ import path from "path";
 
 export default defineConfig({
   plugins: [react()],
-  root: ".", // frontend 디렉토리에 있다면 그대로 "."
-  build: {
-    outDir: "dist",
-  },
   resolve: {
     alias: {
-      "@": path.resolve(__dirname, "./"),
+      "@": path.resolve(__dirname, "src"),
     },
   },
-  server: {
-    port: 3000,
+  build: {
+    outDir: "dist",
   },
 });
