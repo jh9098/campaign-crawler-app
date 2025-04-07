@@ -1,18 +1,19 @@
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
-from backend.crawler import run_crawler
+from crawler import run_crawler
 
 app = FastAPI()
 
 # CORS 허용 (Netlify용)
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["https://dbgapp.netlify.app/"],  # 또는 "https://dbgapp.netlify.app"
+    allow_origins=["https://dbgapp.netlify.app"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
 
 class CrawlRequest(BaseModel):
     session_cookie: str
