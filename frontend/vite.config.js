@@ -6,8 +6,7 @@ export default defineConfig({
   plugins: [react()],
   base: './',
   build: {
-    rollupOptions: {
-      input: resolve(__dirname, 'public/index.html'), // ✅ 명시적으로 entry 지정
-    },
+    outDir: 'dist',
+    emptyOutDir: true,
   },
 });
