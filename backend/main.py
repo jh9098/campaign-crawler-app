@@ -1,7 +1,7 @@
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
-from backend.crawler import run_crawler  # 경로는 상대경로 그대로
+from crawler import run_crawler  # 경로는 상대경로 그대로
 
 app = FastAPI()
 
