@@ -1,4 +1,6 @@
-import requests  
+# backend/crawler.py
+
+import requests
 from bs4 import BeautifulSoup
 import re
 import urllib3
@@ -11,53 +13,48 @@ MAIN_URL = "https://dbg.shopreview.co.kr/usr"
 CAMPAIGN_URL_TEMPLATE = "https://dbg.shopreview.co.kr/usr/campaign_detail?csq={}"
 THREAD_COUNT = 4
 
-
-# ✅ 날짜 문자열에서 "09일" 같은 형태 추출
-def extract_day(text):
-    match = re.search(r"(\d{1,2})일", text)
-    if match:
-        return f"{int(match.group(1)):02d}일"
-    return None
-
-
 def get_public_campaigns(session):
     public_campaigns = set()
     for attempt in range(3):
         try:
-            response = session.get(MAIN_URL, verify=False, timeout=15)
+            response = session.get(MAIN_URL, verify=False, timeout=10)
             response.raise_for_status()
-            soup = BeautifulSoup(response.text, "html.parser")
-            scripts = soup.find_all("script")
+            scripts = BeautifulSoup(response.text, "html.parser").find_all("script")
             for script in scripts:
                 matches = re.findall(r'data-csq=["\']?(\d+)', script.text)
                 public_campaigns.update(map(int, matches))
             if public_campaigns:
                 return public_campaigns
         except requests.exceptions.RequestException:
-            time.sleep(5)
+            time.sleep(3)
     return set()
-
 
 def fetch_campaign_data(campaign_id, session, public_campaigns, selected_days, exclude_keywords):
     url = CAMPAIGN_URL_TEMPLATE.format(campaign_id)
     try:
-        response = session.get(url, verify=False, timeout=15)
+        response = session.get(url, verify=False, timeout=10)
         response.raise_for_status()
         soup = BeautifulSoup(response.text, "html.parser")
-        
-        # 로그인 페이지로 리디렉션되면 무시
+
+        # 로그인 여부 확인
         if soup.find("script", string="window.location.href = '/usr/login_form';"):
             return None
 
-        # ✅ 참여 가능 시간 추출 및 날짜 필터 적용
+        # 참여 시간 확인
         participation_time = soup.find("button", class_="butn butn-success", disabled=True)
-        participation_time = participation_time.text.strip() if participation_time else "참여 가능 시간 없음"
-        day_str = extract_day(participation_time)
-
-        if not day_str or day_str not in selected_days:
+        participation_time = participation_time.text.strip() if participation_time else ""
+        if "시에" in participation_time:
+            participation_time = participation_time.replace("시에", "시 00분에")
+        if not any(day in participation_time for day in selected_days):
             return None
 
-        # 상품명 필터
+        # 종료된 캠페인, 참여불가 조건
+        if soup.find("button", string="종료된 캠페인 입니다") or \
+           soup.find("div", id="alert_msg", string="해당 캠페인은 참여가 불가능한 상태입니다.") or \
+           soup.find("button", string="참여 가능 시간이 아닙니다") or \
+           soup.find("button", string="캠페인 참여"):
+            return None
+
         product_name = soup.find("h3")
         product_name = product_name.text.strip() if product_name else "상품명 없음"
         if any(keyword in product_name for keyword in exclude_keywords):
@@ -65,32 +62,31 @@ def fetch_campaign_data(campaign_id, session, public_campaigns, selected_days, e
 
         # 가격 추출
         price = "가격 정보 없음"
-        total_price_section = soup.find(string=re.compile("총 결제금액"))
-        if total_price_section:
-            price_text = total_price_section.find_next("div", style="text-align:right")
+        price_tag = soup.find(string=re.compile("총 결제금액"))
+        if price_tag:
+            price_text = price_tag.find_next("div", style="text-align:right")
             if price_text:
-                price_numeric = re.sub(r"[^\d]", "", price_text.text.strip())
-                price = price_numeric if price_numeric else "가격 정보 없음"
+                price_value = re.sub(r"[^\d]", "", price_text.text)
+                price = price_value if price_value else price
 
-        # 또바기 포인트 추출
+        # 포인트 추출
         tobagi_points = "0 P"
-        tobagi_section = soup.find(string=re.compile("또바기 포인트"))
-        if tobagi_section:
-            points_text = tobagi_section.find_next("div", style="text-align:right")
-            if points_text:
-                tobagi_points = points_text.text.strip()
+        point_tag = soup.find(string=re.compile("또바기 포인트"))
+        if point_tag:
+            pt = point_tag.find_next("div", style="text-align:right")
+            if pt:
+                tobagi_points = pt.text.strip()
 
-        # 상품 구분 추출
+        # 배송 구분
         product_type = "상품구분 없음"
-        delivery_sections = soup.find_all("div", class_="row col-sm4 col-12")
-        for section in delivery_sections:
+        for section in soup.find_all("div", class_="row col-sm4 col-12"):
             title = section.find("div", class_="col-6")
             value = section.find("div", style="text-align:right")
             if title and value and "배송" in title.text:
                 product_type = value.text.strip()
                 break
 
-        # 쇼핑몰 정보 추출
+        # 쇼핑몰
         shop_name = "쇼핑몰 정보 없음"
         shop_section = soup.find("div", class_="col-sm-9")
         if shop_section:
@@ -100,57 +96,52 @@ def fetch_campaign_data(campaign_id, session, public_campaigns, selected_days, e
 
         # 리뷰 형태
         text_review = "포토 리뷰"
-        review_label = soup.find("label", class_="form-check-label", string="텍스트 리뷰")
-        if review_label:
+        if soup.find("label", string="텍스트 리뷰"):
             text_review = "텍스트 리뷰"
 
-        # ✅ 결과 문자열 구성
-        result = f"{product_type} & {text_review} & {shop_name} & {price} & {tobagi_points} & {participation_time} & {product_name} & {url}"
+        # 가격 기준 필터
+        if price != "가격 정보 없음":
+            price_num = int(price)
+            if "기타배송" in product_type and "스마트스토어" in shop_name and price_num < 90000:
+                return None
+            if "기타배송" in product_type and "쿠팡" in shop_name and price_num < 28500:
+                return None
+            if "실배송" in product_type and price_num < 8500:
+                return None
 
-        # ✅ 공개 / 비공개 분류
-        if campaign_id in public_campaigns:
-            return (None, result)
-        return (result, None)
+        result = f"{product_type} & {text_review} & {shop_name} & {price} & {tobagi_points} & {participation_time} & {product_name} & {url}"
+        return (None, result) if campaign_id in public_campaigns else (result, None)
 
     except requests.exceptions.RequestException:
         return (None, None)
 
-
 def run_crawler(session_cookie, selected_days, exclude_keywords):
-    print("✅ 크롤러 실행 시작")
     session = requests.Session()
     session.cookies.set("PHPSESSID", session_cookie)
 
     public_campaigns = get_public_campaigns(session)
-    print("📦 공개 캠페인 개수:", len(public_campaigns))
-
     if not public_campaigns:
-        print("❌ 공개 캠페인이 없음")
         return [], []
 
-    # ✅ 테스트용 범위
-    start_campaign_id = 40000
-    end_campaign_id = 40100
+    start_id = 40000
+    end_id = max(public_campaigns) + 100
 
-    hidden_campaigns = []
-    public_campaign_details = []
+    hidden = []
+    public = []
 
     with ThreadPoolExecutor(max_workers=THREAD_COUNT) as executor:
         futures = {
             executor.submit(
                 fetch_campaign_data, cid, session, public_campaigns, selected_days, exclude_keywords
-            ): cid for cid in range(start_campaign_id, end_campaign_id + 1)
+            ): cid for cid in range(start_id, end_id + 1)
         }
         for future in futures:
             result = future.result()
             if result:
-                hidden_result, public_result = result
-                if hidden_result:
-                    hidden_campaigns.append(hidden_result)
-                if public_result:
-                    public_campaign_details.append(public_result)
+                h, p = result
+                if h: hidden.append(h)
+                if p: public.append(p)
 
-    hidden_campaigns = sorted(hidden_campaigns, key=lambda x: x.split(" & ")[5])
-    public_campaign_details = sorted(public_campaign_details, key=lambda x: x.split(" & ")[5])
-
-    return hidden_campaigns, public_campaign_details
+    hidden.sort(key=lambda x: x.split(" & ")[5])
+    public.sort(key=lambda x: x.split(" & ")[5])
+    return hidden, public
