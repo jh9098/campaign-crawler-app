@@ -45,15 +45,19 @@ def fetch_campaign_data(campaign_id, session, public_campaigns, selected_days, e
         participation_time = participation_time.text.strip() if participation_time else ""
         if "시에" in participation_time:
             participation_time = participation_time.replace("시에", "시 00분에")
-        
+
         # 상품명 먼저 추출
         product_name_tag = soup.find("h3")
         product_name = product_name_tag.text.strip() if product_name_tag else "상품명 없음"
-        
-        # 🔍 디버깅용 출력은 그 다음
+
+        # 🔍 디버깅 출력
         print(f"🔍 캠페인 {campaign_id} 참여 시간: {participation_time}")
         print(f"🔍 상품명: {product_name}")
 
+        # 날짜 필터링 (예: "04월 09일 16시 00분에" → "09일")
+        day_match = re.search(r"(\d{2})일", participation_time)
+        if not day_match or day_match.group(0) not in selected_days:
+            return None
 
         # 종료된 캠페인, 참여불가 조건
         if soup.find("button", string="종료된 캠페인 입니다") or \
@@ -62,11 +66,9 @@ def fetch_campaign_data(campaign_id, session, public_campaigns, selected_days, e
            soup.find("button", string="캠페인 참여"):
             return None
 
-        product_name_tag = soup.find("h3")
-        product_name = product_name_tag.text.strip() if product_name_tag else "상품명 없음"
+        # 제외 키워드 필터
         if product_name != "상품명 없음" and any(keyword in product_name for keyword in exclude_keywords):
             return None
-
 
         # 가격 추출
         price = "가격 정보 없음"
