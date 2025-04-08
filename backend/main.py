@@ -28,6 +28,10 @@ class CrawlRequest(BaseModel):
     session_cookie: str
     selected_days: list[str]
     exclude_keywords: list[str]
+    use_full_range: bool = True
+    start_id: int | None = None
+    end_id: int | None = None
+
 
 @app.post("/crawl")
 async def crawl_handler(req: CrawlRequest):
