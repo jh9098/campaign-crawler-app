@@ -109,8 +109,8 @@ def run_crawler(session_cookie, selected_days, exclude_keywords):
         print("❌ 공개 캠페인이 없음")
         return [], []
 
-    start_campaign_id = 40016 #min(public_campaigns) - 100
-    end_campaign_id = 40018 #max(public_campaigns)
+    start_campaign_id = 40000 #min(public_campaigns) - 100
+    end_campaign_id = 40100 #max(public_campaigns)
 
     hidden_campaigns = []
     public_campaign_details = []
