@@ -137,7 +137,7 @@ def run_crawler(session_cookie, selected_days, exclude_keywords):
     if not public_campaigns:
         return [], []
 
-    start_id = min(public_campaigns)
+    start_id = 39500#min(public_campaigns)
     end_id = max(public_campaigns)
 
     hidden = []
