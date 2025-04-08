@@ -4,11 +4,10 @@ import re
 import urllib3
 import time
 from concurrent.futures import ThreadPoolExecutor
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, WebSocket
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
-from starlette.responses import StreamingResponse
-import asyncio
+from typing import List
 
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
@@ -28,8 +27,27 @@ app.add_middleware(
 
 class CrawlRequest(BaseModel):
     session_cookie: str
-    selected_days: list[str]
-    exclude_keywords: list[str]
+    selected_days: List[str]
+    exclude_keywords: List[str]
+
+clients = []
+
+@app.websocket("/ws")
+async def websocket_endpoint(websocket: WebSocket):
+    await websocket.accept()
+    clients.append(websocket)
+    try:
+        while True:
+            await websocket.receive_text()
+    except:
+        clients.remove(websocket)
+
+async def send_progress(percent):
+    for ws in clients:
+        try:
+            await ws.send_text(str(percent))
+        except:
+            pass
 
 def get_public_campaigns(session):
     public_campaigns = set()
@@ -71,8 +89,7 @@ def fetch_campaign_data(campaign_id, session, public_campaigns, selected_days, e
             return None
 
         product_name = soup.find("h3")
-        product_name = product_name.text.strip() if product_name else "상품명 없음"
-        product_name = product_name.replace("&", "")
+        product_name = product_name.text.strip().replace("&", "") if product_name else "상품명 없음"
         if any(keyword in product_name for keyword in exclude_keywords):
             return None
 
@@ -135,10 +152,12 @@ async def crawl_handler(req: CrawlRequest):
         return {"hidden": [], "public": []}
 
     start_id = 40000
-    end_id = 40100
+    end_id = max(public_campaigns) + 100
 
     hidden = []
     public = []
+    total = end_id - start_id + 1
+    done = 0
 
     with ThreadPoolExecutor(max_workers=THREAD_COUNT) as executor:
         futures = {
@@ -146,13 +165,11 @@ async def crawl_handler(req: CrawlRequest):
                 fetch_campaign_data, cid, session, public_campaigns, req.selected_days, req.exclude_keywords
             ): cid for cid in range(start_id, end_id + 1)
         }
-        completed = 0
-        total = len(futures)
         for future in futures:
             result = future.result()
-            completed += 1
-            progress = int((completed / total) * 100)
-            print(f"🔁 진행률: {progress}%")  # 나중에 StreamingResponse 용도로도 사용 가능
+            done += 1
+            percent = int((done / total) * 100)
+            await send_progress(percent)
             if result:
                 h, p = result
                 if h: hidden.append(h)
