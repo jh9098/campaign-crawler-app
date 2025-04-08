@@ -1,53 +1,17 @@
+# backend/crawler.py
+
 import requests
 from bs4 import BeautifulSoup
 import re
 import urllib3
 import time
 from concurrent.futures import ThreadPoolExecutor
-from fastapi import FastAPI, WebSocket
-from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel
-from typing import List
 
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 MAIN_URL = "https://dbg.shopreview.co.kr/usr"
 CAMPAIGN_URL_TEMPLATE = "https://dbg.shopreview.co.kr/usr/campaign_detail?csq={}"
-THREAD_COUNT = 2
-
-app = FastAPI()
-
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
-
-class CrawlRequest(BaseModel):
-    session_cookie: str
-    selected_days: List[str]
-    exclude_keywords: List[str]
-
-clients = []
-
-@app.websocket("/ws")
-async def websocket_endpoint(websocket: WebSocket):
-    await websocket.accept()
-    clients.append(websocket)
-    try:
-        while True:
-            await websocket.receive_text()
-    except:
-        clients.remove(websocket)
-
-async def send_progress(percent):
-    for ws in clients:
-        try:
-            await ws.send_text(str(percent))
-        except:
-            pass
+THREAD_COUNT = 4
 
 def get_public_campaigns(session):
     public_campaigns = set()
@@ -72,9 +36,11 @@ def fetch_campaign_data(campaign_id, session, public_campaigns, selected_days, e
         response.raise_for_status()
         soup = BeautifulSoup(response.text, "html.parser")
 
+        # 로그인 여부 확인
         if soup.find("script", string="window.location.href = '/usr/login_form';"):
             return None
 
+        # 참여 시간 확인
         participation_time = soup.find("button", class_="butn butn-success", disabled=True)
         participation_time = participation_time.text.strip() if participation_time else ""
         if "시에" in participation_time:
@@ -82,6 +48,7 @@ def fetch_campaign_data(campaign_id, session, public_campaigns, selected_days, e
         if not any(day in participation_time for day in selected_days):
             return None
 
+        # 종료된 캠페인, 참여불가 조건
         if soup.find("button", string="종료된 캠페인 입니다") or \
            soup.find("div", id="alert_msg", string="해당 캠페인은 참여가 불가능한 상태입니다.") or \
            soup.find("button", string="참여 가능 시간이 아닙니다") or \
@@ -89,10 +56,11 @@ def fetch_campaign_data(campaign_id, session, public_campaigns, selected_days, e
             return None
 
         product_name = soup.find("h3")
-        product_name = product_name.text.strip().replace("&", "") if product_name else "상품명 없음"
+        product_name = product_name.text.strip() if product_name else "상품명 없음"
         if any(keyword in product_name for keyword in exclude_keywords):
             return None
 
+        # 가격 추출
         price = "가격 정보 없음"
         price_tag = soup.find(string=re.compile("총 결제금액"))
         if price_tag:
@@ -101,6 +69,7 @@ def fetch_campaign_data(campaign_id, session, public_campaigns, selected_days, e
                 price_value = re.sub(r"[^\d]", "", price_text.text)
                 price = price_value if price_value else price
 
+        # 포인트 추출
         tobagi_points = "0 P"
         point_tag = soup.find(string=re.compile("또바기 포인트"))
         if point_tag:
@@ -108,6 +77,7 @@ def fetch_campaign_data(campaign_id, session, public_campaigns, selected_days, e
             if pt:
                 tobagi_points = pt.text.strip()
 
+        # 배송 구분
         product_type = "상품구분 없음"
         for section in soup.find_all("div", class_="row col-sm4 col-12"):
             title = section.find("div", class_="col-6")
@@ -116,6 +86,7 @@ def fetch_campaign_data(campaign_id, session, public_campaigns, selected_days, e
                 product_type = value.text.strip()
                 break
 
+        # 쇼핑몰
         shop_name = "쇼핑몰 정보 없음"
         shop_section = soup.find("div", class_="col-sm-9")
         if shop_section:
@@ -123,10 +94,12 @@ def fetch_campaign_data(campaign_id, session, public_campaigns, selected_days, e
             if shop_img and "alt" in shop_img.attrs:
                 shop_name = shop_img["alt"].strip()
 
+        # 리뷰 형태
         text_review = "포토 리뷰"
         if soup.find("label", string="텍스트 리뷰"):
             text_review = "텍스트 리뷰"
 
+        # 가격 기준 필터
         if price != "가격 정보 없음":
             price_num = int(price)
             if "기타배송" in product_type and "스마트스토어" in shop_name and price_num < 90000:
@@ -142,34 +115,28 @@ def fetch_campaign_data(campaign_id, session, public_campaigns, selected_days, e
     except requests.exceptions.RequestException:
         return (None, None)
 
-@app.post("/crawl")
-async def crawl_handler(req: CrawlRequest):
+def run_crawler(session_cookie, selected_days, exclude_keywords):
     session = requests.Session()
-    session.cookies.set("PHPSESSID", req.session_cookie)
+    session.cookies.set("PHPSESSID", session_cookie)
 
     public_campaigns = get_public_campaigns(session)
     if not public_campaigns:
-        return {"hidden": [], "public": []}
+        return [], []
 
     start_id = 40000
     end_id = max(public_campaigns) + 100
 
     hidden = []
     public = []
-    total = end_id - start_id + 1
-    done = 0
 
     with ThreadPoolExecutor(max_workers=THREAD_COUNT) as executor:
         futures = {
             executor.submit(
-                fetch_campaign_data, cid, session, public_campaigns, req.selected_days, req.exclude_keywords
+                fetch_campaign_data, cid, session, public_campaigns, selected_days, exclude_keywords
             ): cid for cid in range(start_id, end_id + 1)
         }
         for future in futures:
             result = future.result()
-            done += 1
-            percent = int((done / total) * 100)
-            await send_progress(percent)
             if result:
                 h, p = result
                 if h: hidden.append(h)
@@ -177,4 +144,4 @@ async def crawl_handler(req: CrawlRequest):
 
     hidden.sort(key=lambda x: x.split(" & ")[5])
     public.sort(key=lambda x: x.split(" & ")[5])
-    return {"hidden": hidden, "public": public}
+    return hidden, public
