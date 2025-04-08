@@ -8,7 +8,9 @@ export default function App() {
   const [loading, setLoading] = useState(false);
   const [progress, setProgress] = useState(0);
   const navigate = useNavigate();
-
+  const [rangeMode, setRangeMode] = useState("auto"); // 'auto' or 'manual'
+  const [rangeStart, setRangeStart] = useState("");
+  const [rangeEnd, setRangeEnd] = useState("");
   const days = Array.from({ length: 31 }, (_, i) => `${String(i + 1).padStart(2, "0")}일`);
 
   useEffect(() => {
@@ -53,8 +55,10 @@ export default function App() {
           session_cookie: cookie,
           selected_days: selectedDays,
           exclude_keywords: exclude.split(",").map((kw) => kw.trim()),
+          use_full_range: rangeMode === "auto",
+          start_id: rangeMode === "manual" ? Number(rangeStart) : null,
+          end_id: rangeMode === "manual" ? Number(rangeEnd) : null,
         }),
-      });
 
       if (!response.ok) {
         console.error("❌ 서버 응답 실패:", response.status);
@@ -106,7 +110,43 @@ export default function App() {
           </button>
         ))}
       </div><br />
-
+      <label>검색 범위 설정:</label><br />
+      <label>
+        <input
+          type="radio"
+          checked={rangeMode === "auto"}
+          onChange={() => setRangeMode("auto")}
+        />
+        전체 자동
+      </label>
+      <label style={{ marginLeft: 10 }}>
+        <input
+          type="radio"
+          checked={rangeMode === "manual"}
+          onChange={() => setRangeMode("manual")}
+        />
+        수동 입력
+      </label><br />
+      
+      {rangeMode === "manual" && (
+        <div style={{ marginTop: 10 }}>
+          <input
+            type="number"
+            placeholder="시작 ID (예: 40000)"
+            value={rangeStart}
+            onChange={(e) => setRangeStart(e.target.value)}
+            style={{ marginRight: 10, width: 120 }}
+          />
+          <input
+            type="number"
+            placeholder="종료 ID (예: 40100)"
+            value={rangeEnd}
+            onChange={(e) => setRangeEnd(e.target.value)}
+            style={{ width: 120 }}
+          />
+        </div>
+      )}<br />
+      
       <label>제외 키워드 (쉼표로 구분):</label><br />
       <input
         value={exclude}
