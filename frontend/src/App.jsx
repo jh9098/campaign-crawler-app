@@ -9,6 +9,7 @@ export default function App() {
   const navigate = useNavigate();
 
   const days = Array.from({ length: 31 }, (_, i) => `${String(i + 1).padStart(2, "0")}일`);
+  
 
   // ✅ localStorage에서 이전 값 불러오기
   useEffect(() => {
@@ -120,6 +121,11 @@ export default function App() {
       <button onClick={handleSubmit} disabled={loading}>
         {loading ? "⏳ 실행 중..." : "✅ 실행하기"}
       </button>
+      {localStorage.getItem("result_hidden") && localStorage.getItem("result_public") && (
+        <button onClick={() => navigate("/result")} style={{ marginBottom: 20 }}>
+          📄 결과 다시 보기
+        </button>
+      )}
 
       {loading && (
         <p style={{ color: "green", marginTop: 10 }}>⏳ 데이터를 불러오는 중입니다...</p>
