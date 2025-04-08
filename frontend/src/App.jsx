@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 
 export default function App() {
@@ -10,12 +10,25 @@ export default function App() {
 
   const days = Array.from({ length: 31 }, (_, i) => `${String(i + 1).padStart(2, "0")}일`);
 
+  // ✅ localStorage에서 이전 값 불러오기
+  useEffect(() => {
+    const savedCookie = localStorage.getItem("last_cookie");
+    const savedDays = JSON.parse(localStorage.getItem("last_days") || "[]");
+    const savedExclude = localStorage.getItem("last_exclude");
+
+    if (savedCookie) setCookie(savedCookie);
+    if (savedDays.length > 0) setSelectedDays(savedDays);
+    if (savedExclude) setExclude(savedExclude);
+  }, []);
+
+  // ✅ 날짜 버튼 클릭 처리
   const toggleDay = (day) => {
     setSelectedDays((prev) =>
       prev.includes(day) ? prev.filter((d) => d !== day) : [...prev, day]
     );
   };
 
+  // ✅ 실행 버튼 클릭 시 → localStorage 저장
   const handleSubmit = async () => {
     if (!cookie) {
       alert("PHPSESSID를 입력해주세요.");
@@ -28,6 +41,11 @@ export default function App() {
     }
 
     setLoading(true);
+
+    // 💾 입력값 저장
+    localStorage.setItem("last_cookie", cookie);
+    localStorage.setItem("last_days", JSON.stringify(selectedDays));
+    localStorage.setItem("last_exclude", exclude);
 
     try {
       const response = await fetch("https://campaign-crawler-app.onrender.com/crawl", {
@@ -65,7 +83,11 @@ export default function App() {
       <h2>📦 캠페인 필터링</h2>
 
       <label>PHPSESSID:</label><br />
-      <input value={cookie} onChange={(e) => setCookie(e.target.value)} style={{ width: 300 }} /><br /><br />
+      <input
+        value={cookie}
+        onChange={(e) => setCookie(e.target.value)}
+        style={{ width: 300 }}
+      /><br /><br />
 
       <label>참여 날짜 선택 (다중 가능):</label><br />
       <div style={{ display: "flex", flexWrap: "wrap", maxWidth: 500 }}>
