@@ -67,7 +67,7 @@ def fetch_campaign_data(campaign_id, session, public_campaigns, selected_days, e
             return None
 
         # 제외 키워드 필터
-        if product_name != "상품명 없음" and any(keyword in product_name for keyword in exclude_keywords):
+        if any(keyword in product_name for keyword in exclude_keywords):
             return None
 
         # 가격 추출
