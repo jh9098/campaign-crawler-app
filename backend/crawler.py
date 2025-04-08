@@ -11,7 +11,7 @@ urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 MAIN_URL = "https://dbg.shopreview.co.kr/usr"
 CAMPAIGN_URL_TEMPLATE = "https://dbg.shopreview.co.kr/usr/campaign_detail?csq={}"
-THREAD_COUNT = 4
+THREAD_COUNT = 2
 
 def get_public_campaigns(session):
     public_campaigns = set()
