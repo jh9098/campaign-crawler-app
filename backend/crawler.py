@@ -125,7 +125,7 @@ def fetch_campaign_data(campaign_id, session, public_campaigns, selected_days, e
     except requests.exceptions.RequestException:
         return (None, None)
 
-def run_crawler(session_cookie, selected_days, exclude_keywords):
+def run_crawler(session_cookie, selected_days, exclude_keywords, use_full_range=True, start_id=None, end_id=None):
     session = requests.Session()
     session.cookies.set("PHPSESSID", session_cookie)
 
@@ -137,8 +137,13 @@ def run_crawler(session_cookie, selected_days, exclude_keywords):
     if not public_campaigns:
         return [], []
 
-    start_id = 39500#min(public_campaigns)
-    end_id = max(public_campaigns)
+    if use_full_range:
+        start_id = min(public_campaigns)
+        end_id = max(public_campaigns)
+    else:
+        if start_id is None or end_id is None:
+            raise ValueError("수동 범위를 사용하려면 start_id와 end_id를 모두 지정해야 합니다.")
+
 
     hidden = []
     public = []
