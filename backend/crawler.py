@@ -60,10 +60,11 @@ def fetch_campaign_data(campaign_id, session, public_campaigns, selected_days, e
            soup.find("button", string="캠페인 참여"):
             return None
 
-        product_name = soup.find("h3")
-        product_name = product_name.text.strip() if product_name else "상품명 없음"
-        if any(keyword in product_name for keyword in exclude_keywords):
+        product_name_tag = soup.find("h3")
+        product_name = product_name_tag.text.strip() if product_name_tag else "상품명 없음"
+        if product_name != "상품명 없음" and any(keyword in product_name for keyword in exclude_keywords):
             return None
+
 
         # 가격 추출
         price = "가격 정보 없음"
