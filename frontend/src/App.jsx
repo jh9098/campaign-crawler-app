@@ -6,12 +6,11 @@ export default function App() {
   const [selectedDays, setSelectedDays] = useState([]);
   const [exclude, setExclude] = useState("");
   const [loading, setLoading] = useState(false);
+  const [progress, setProgress] = useState(0);
   const navigate = useNavigate();
 
   const days = Array.from({ length: 31 }, (_, i) => `${String(i + 1).padStart(2, "0")}일`);
-  
 
-  // ✅ localStorage에서 이전 값 불러오기
   useEffect(() => {
     const savedCookie = localStorage.getItem("last_cookie");
     const savedDays = JSON.parse(localStorage.getItem("last_days") || "[]");
@@ -22,14 +21,12 @@ export default function App() {
     if (savedExclude) setExclude(savedExclude);
   }, []);
 
-  // ✅ 날짜 버튼 클릭 처리
   const toggleDay = (day) => {
     setSelectedDays((prev) =>
       prev.includes(day) ? prev.filter((d) => d !== day) : [...prev, day]
     );
   };
 
-  // ✅ 실행 버튼 클릭 시 → localStorage 저장
   const handleSubmit = async () => {
     if (!cookie) {
       alert("PHPSESSID를 입력해주세요.");
@@ -42,8 +39,8 @@ export default function App() {
     }
 
     setLoading(true);
+    setProgress(0);
 
-    // 💾 입력값 저장
     localStorage.setItem("last_cookie", cookie);
     localStorage.setItem("last_days", JSON.stringify(selectedDays));
     localStorage.setItem("last_exclude", exclude);
@@ -121,6 +118,7 @@ export default function App() {
       <button onClick={handleSubmit} disabled={loading}>
         {loading ? "⏳ 실행 중..." : "✅ 실행하기"}
       </button>
+
       {localStorage.getItem("result_hidden") && localStorage.getItem("result_public") && (
         <button onClick={() => navigate("/result")} style={{ marginBottom: 20 }}>
           📄 결과 다시 보기
@@ -128,7 +126,24 @@ export default function App() {
       )}
 
       {loading && (
-        <p style={{ color: "green", marginTop: 10 }}>⏳ 데이터를 불러오는 중입니다...</p>
+        <div style={{ marginTop: 10 }}>
+          <p style={{ color: "green" }}>⏳ 데이터를 불러오는 중입니다...</p>
+          <div style={{
+            height: 10,
+            width: "100%",
+            backgroundColor: "#eee",
+            borderRadius: 5,
+            overflow: "hidden",
+            marginTop: 5
+          }}>
+            <div style={{
+              height: "100%",
+              width: `${progress}%`,
+              backgroundColor: "#0077ff",
+              transition: "width 0.3s ease"
+            }}></div>
+          </div>
+        </div>
       )}
     </div>
   );
