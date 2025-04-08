@@ -22,9 +22,27 @@ export default function Result() {
     setPublicResults(sortByTime(publicData));
   }, []);
 
-  const renderTable = (data, title) => (
+  const downloadTxt = (data, filename) => {
+    const blob = new Blob([data.join("\n")], { type: "text/plain" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = filename;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const renderTable = (data, title, isHidden) => (
     <div style={{ marginBottom: 40 }}>
-      <h3>{title} ({data.length}건)</h3>
+      <h3>
+        {title} ({data.length}건)
+        <button
+          onClick={() => downloadTxt(data, isHidden ? "숨김캠페인.txt" : "공개캠페인.txt")}
+          style={{ marginLeft: 12, padding: "4px 10px", fontSize: 14 }}
+        >
+          📥 다운로드
+        </button>
+      </h3>
       <table border="1" cellPadding="6" style={{ borderCollapse: "collapse", width: "100%" }}>
         <thead>
           <tr>
@@ -55,8 +73,8 @@ export default function Result() {
       <h2>🧾 크롤링 결과</h2>
       <button onClick={() => navigate("/")}>🔙 처음으로</button>
       <br /><br />
-      {renderTable(hiddenResults, "🔒 숨겨진 캠페인")}
-      {renderTable(publicResults, "🌐 공개 캠페인")}
+      {renderTable(hiddenResults, "🔒 숨겨진 캠페인", true)}
+      {renderTable(publicResults, "🌐 공개 캠페인", false)}
     </div>
   );
 }
