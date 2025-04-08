@@ -1,5 +1,3 @@
-# backend/crawler.py
-
 import requests
 from bs4 import BeautifulSoup
 import re
@@ -57,6 +55,7 @@ def fetch_campaign_data(campaign_id, session, public_campaigns, selected_days, e
 
         product_name = soup.find("h3")
         product_name = product_name.text.strip() if product_name else "상품명 없음"
+        product_name = product_name.replace("&", "")
         if any(keyword in product_name for keyword in exclude_keywords):
             return None
 
