@@ -1,3 +1,5 @@
+# backend/crawler.py
+
 import requests
 from bs4 import BeautifulSoup
 import re
@@ -122,8 +124,8 @@ def run_crawler(session_cookie, selected_days, exclude_keywords):
     if not public_campaigns:
         return [], []
 
-    start_id = 39500
-    end_id = 40000#max(public_campaigns) + 100
+    start_id = 40000
+    end_id = max(public_campaigns) + 100
 
     hidden = []
     public = []
