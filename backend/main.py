@@ -1,4 +1,5 @@
 # backend/main.py
+print("✅ CORS 설정 적용됨")
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
