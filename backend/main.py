@@ -39,8 +39,12 @@ async def crawl_handler(req: CrawlRequest):
         hidden, public = run_crawler(
             session_cookie=req.session_cookie,
             selected_days=req.selected_days,
-            exclude_keywords=req.exclude_keywords
+            exclude_keywords=req.exclude_keywords,
+            use_full_range=req.use_full_range,
+            start_id=req.start_id,
+            end_id=req.end_id
         )
+
         return {"hidden": hidden, "public": public}
     except Exception as e:
         return {"error": str(e)}
