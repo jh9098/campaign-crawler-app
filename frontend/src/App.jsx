@@ -110,43 +110,7 @@ export default function App() {
           </button>
         ))}
       </div><br />
-      <label>검색 범위 설정:</label><br />
-      <label>
-        <input
-          type="radio"
-          checked={rangeMode === "auto"}
-          onChange={() => setRangeMode("auto")}
-        />
-        전체 자동
-      </label>
-      <label style={{ marginLeft: 10 }}>
-        <input
-          type="radio"
-          checked={rangeMode === "manual"}
-          onChange={() => setRangeMode("manual")}
-        />
-        수동 입력
-      </label><br />
-      
-      {rangeMode === "manual" && (
-        <div style={{ marginTop: 10 }}>
-          <input
-            type="number"
-            placeholder="시작 ID (예: 40000)"
-            value={rangeStart}
-            onChange={(e) => setRangeStart(e.target.value)}
-            style={{ marginRight: 10, width: 120 }}
-          />
-          <input
-            type="number"
-            placeholder="종료 ID (예: 40100)"
-            value={rangeEnd}
-            onChange={(e) => setRangeEnd(e.target.value)}
-            style={{ width: 120 }}
-          />
-        </div>
-      )}<br />
-      
+
       <label>제외 키워드 (쉼표로 구분):</label><br />
       <input
         value={exclude}
@@ -154,6 +118,41 @@ export default function App() {
         style={{ width: 300 }}
         placeholder="이발기, 강아지, 깔창 등"
       /><br /><br />
+
+      <label>캠페인 ID 범위 선택:</label><br />
+      <label>
+        <input
+          type="radio"
+          checked={useFullRange}
+          onChange={() => setUseFullRange(true)}
+        />
+        전체 범위 자동 탐색
+      </label><br />
+      <label>
+        <input
+          type="radio"
+          checked={!useFullRange}
+          onChange={() => setUseFullRange(false)}
+        />
+        수동 범위 입력
+      </label><br /><br />
+
+      {!useFullRange && (
+        <>
+          <label>시작 캠페인 ID:</label><br />
+          <input
+            type="number"
+            value={startId}
+            onChange={(e) => setStartId(Number(e.target.value))}
+          /><br /><br />
+          <label>끝 캠페인 ID:</label><br />
+          <input
+            type="number"
+            value={endId}
+            onChange={(e) => setEndId(Number(e.target.value))}
+          /><br /><br />
+        </>
+      )}
 
       <button onClick={handleSubmit} disabled={loading}>
         {loading ? "⏳ 실행 중..." : "✅ 실행하기"}
