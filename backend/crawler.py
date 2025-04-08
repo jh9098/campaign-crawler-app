@@ -45,9 +45,9 @@ def fetch_campaign_data(campaign_id, session, public_campaigns, selected_days, e
         participation_time = participation_time.text.strip() if participation_time else ""
         if "시에" in participation_time:
             participation_time = participation_time.replace("시에", "시 00분에")
-        if not any(day in participation_time for day in selected_days):
-            return None
-
+        #if not any(day in participation_time for day in selected_days):
+        #    return None
+#임시주석
         # 종료된 캠페인, 참여불가 조건
         if soup.find("button", string="종료된 캠페인 입니다") or \
            soup.find("div", id="alert_msg", string="해당 캠페인은 참여가 불가능한 상태입니다.") or \
