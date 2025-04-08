@@ -7,20 +7,27 @@ export default function App() {
   const [exclude, setExclude] = useState("");
   const [loading, setLoading] = useState(false);
   const [progress, setProgress] = useState(0);
+  const [useFullRange, setUseFullRange] = useState(true);
+  const [startId, setStartId] = useState(40000);
+  const [endId, setEndId] = useState(40100);
   const navigate = useNavigate();
-  const [rangeMode, setRangeMode] = useState("auto"); // 'auto' or 'manual'
-  const [rangeStart, setRangeStart] = useState("");
-  const [rangeEnd, setRangeEnd] = useState("");
+
   const days = Array.from({ length: 31 }, (_, i) => `${String(i + 1).padStart(2, "0")}일`);
 
   useEffect(() => {
     const savedCookie = localStorage.getItem("last_cookie");
     const savedDays = JSON.parse(localStorage.getItem("last_days") || "[]");
     const savedExclude = localStorage.getItem("last_exclude");
+    const savedUseFullRange = localStorage.getItem("last_use_full_range") === "true";
+    const savedStartId = localStorage.getItem("last_start_id");
+    const savedEndId = localStorage.getItem("last_end_id");
 
     if (savedCookie) setCookie(savedCookie);
     if (savedDays.length > 0) setSelectedDays(savedDays);
     if (savedExclude) setExclude(savedExclude);
+    if (savedStartId) setStartId(Number(savedStartId));
+    if (savedEndId) setEndId(Number(savedEndId));
+    setUseFullRange(savedUseFullRange);
   }, []);
 
   const toggleDay = (day) => {
@@ -40,12 +47,20 @@ export default function App() {
       return;
     }
 
+    if (!useFullRange && (startId >= endId)) {
+      alert("시작 ID가 끝 ID보다 작아야 합니다.");
+      return;
+    }
+
     setLoading(true);
     setProgress(0);
 
     localStorage.setItem("last_cookie", cookie);
     localStorage.setItem("last_days", JSON.stringify(selectedDays));
     localStorage.setItem("last_exclude", exclude);
+    localStorage.setItem("last_use_full_range", String(useFullRange));
+    localStorage.setItem("last_start_id", String(startId));
+    localStorage.setItem("last_end_id", String(endId));
 
     try {
       const response = await fetch("https://campaign-crawler-app.onrender.com/crawl", {
@@ -55,10 +70,11 @@ export default function App() {
           session_cookie: cookie,
           selected_days: selectedDays,
           exclude_keywords: exclude.split(",").map((kw) => kw.trim()),
-          use_full_range: rangeMode === "auto",
-          start_id: rangeMode === "manual" ? Number(rangeStart) : null,
-          end_id: rangeMode === "manual" ? Number(rangeEnd) : null,
+          use_full_range: useFullRange,
+          start_id: startId,
+          end_id: endId,
         }),
+      });
 
       if (!response.ok) {
         console.error("❌ 서버 응답 실패:", response.status);
@@ -68,6 +84,11 @@ export default function App() {
 
       const data = await response.json();
       console.log("✅ 크롤링 결과 수신 완료:", data);
+
+      if (data.error) {
+        alert("❌ 서버 오류 발생: " + data.error);
+        return;
+      }
 
       localStorage.setItem("result_hidden", JSON.stringify(data.hidden));
       localStorage.setItem("result_public", JSON.stringify(data.public));
