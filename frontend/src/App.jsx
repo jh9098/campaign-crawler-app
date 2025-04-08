@@ -8,7 +8,7 @@ export default function App() {
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
 
-  const days = Array.from({ length: 31 }, (_, i) => ${String(i + 1).padStart(2, "0")}일);
+  const days = Array.from({ length: 31 }, (_, i) => `${String(i + 1).padStart(2, "0")}일`);
   
 
   // ✅ localStorage에서 이전 값 불러오기
