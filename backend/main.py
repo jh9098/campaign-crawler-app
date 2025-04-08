@@ -8,7 +8,7 @@ app = FastAPI()
 # ✅ 정확한 CORS 설정
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["https://dbgapp.netlify.app"],
+    allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
