@@ -4,28 +4,29 @@ print("✅ CORS 설정 적용됨")
 
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, StreamingResponse
 from pydantic import BaseModel
 from crawler import run_crawler
-from fastapi.responses import StreamingResponse
 import io
 import zipfile
+
 app = FastAPI()
 
 # ✅ CORS 설정
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # 또는 ["https://dbgapp.netlify.app"]
+    allow_origins=["*"],  # 운영 시에는 ["https://dbgapp.netlify.app"] 등으로 제한 권장
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-# ✅ preflight 요청 명시적으로 허용
+# ✅ Preflight 요청 대응
 @app.options("/crawl")
 async def options_handler(request: Request):
     return JSONResponse(content={}, status_code=200)
 
+# ✅ 요청 모델 정의
 class CrawlRequest(BaseModel):
     session_cookie: str
     selected_days: list[str]
@@ -34,7 +35,7 @@ class CrawlRequest(BaseModel):
     start_id: int | None = None
     end_id: int | None = None
 
-
+# ✅ 크롤링 실행 및 zip 응답
 @app.post("/crawl")
 async def crawl_handler(req: CrawlRequest):
     try:
@@ -60,4 +61,4 @@ async def crawl_handler(req: CrawlRequest):
         )
 
     except Exception as e:
-        return {"error": str(e)}
+        return JSONResponse(status_code=500, content={"error": str(e)})
