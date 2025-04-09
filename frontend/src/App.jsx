@@ -84,12 +84,13 @@ export default function App() {
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
-      a.download = "campaign_result.txt";
+      a.download = "campaign_results.zip";
       a.click();
       window.URL.revokeObjectURL(url);
-
-      alert("✅ 결과가 다운로드 되었습니다. 업로드해서 결과를 확인해주세요.");
+      
+      alert("✅ 결과가 압축파일로 다운로드 되었습니다. 업로드하여 확인해주세요.");
       navigate("/result");
+
     } catch (error) {
       console.error("❌ 오류 발생:", error);
       alert("에러 발생: " + error.message);
