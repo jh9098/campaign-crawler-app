@@ -12,21 +12,21 @@ import zipfile
 
 app = FastAPI()
 
-# ✅ CORS 설정
+# CORS 허용 설정
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # 운영 시에는 ["https://dbgapp.netlify.app"] 등으로 제한 권장
+    allow_origins=["*"],  # 또는 ["https://dbgapp.netlify.app"]
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-# ✅ Preflight 요청 대응
+# OPTIONS 프리플라이트 요청 허용
 @app.options("/crawl")
 async def options_handler(request: Request):
     return JSONResponse(content={}, status_code=200)
 
-# ✅ 요청 모델 정의
+# 요청 파라미터 모델
 class CrawlRequest(BaseModel):
     session_cookie: str
     selected_days: list[str]
@@ -35,10 +35,10 @@ class CrawlRequest(BaseModel):
     start_id: int | None = None
     end_id: int | None = None
 
-# ✅ 크롤링 실행 및 zip 응답
 @app.post("/crawl")
 async def crawl_handler(req: CrawlRequest):
     try:
+        print("📥 크롤링 요청 수신됨")
         hidden, public = run_crawler(
             session_cookie=req.session_cookie,
             selected_days=req.selected_days,
@@ -48,12 +48,22 @@ async def crawl_handler(req: CrawlRequest):
             end_id=req.end_id
         )
 
+        # 결과 없으면 오류 반환
+        if not hidden and not public:
+            return JSONResponse(content={"error": "크롤링 결과가 없습니다."}, status_code=400)
+
+        print(f"📦 숨김 캠페인 수: {len(hidden)}")
+        print(f"📦 공개 캠페인 수: {len(public)}")
+
+        # 메모리 내 zip 파일 생성
         memory_file = io.BytesIO()
         with zipfile.ZipFile(memory_file, mode="w", compression=zipfile.ZIP_DEFLATED) as zf:
             zf.writestr("result_hidden.txt", "\n".join(hidden))
             zf.writestr("result_public.txt", "\n".join(public))
 
         memory_file.seek(0)
+        print("✅ zip 파일 생성 완료")
+
         return StreamingResponse(
             memory_file,
             media_type="application/zip",
@@ -61,4 +71,5 @@ async def crawl_handler(req: CrawlRequest):
         )
 
     except Exception as e:
-        return JSONResponse(status_code=500, content={"error": str(e)})
+        print("❌ 서버 처리 중 오류 발생:", str(e))
+        return JSONResponse(content={"error": str(e)}, status_code=500)
