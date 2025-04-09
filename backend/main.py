@@ -4,7 +4,7 @@ print("✅ CORS 설정 적용됨")
 
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse, EventSourceResponse
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 from crawler import run_crawler_streaming
 import asyncio
