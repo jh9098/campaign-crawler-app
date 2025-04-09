@@ -87,7 +87,7 @@ export default function App() {
       a.download = "campaign_results.zip";
       a.click();
       window.URL.revokeObjectURL(url);
-      
+
       alert("✅ 결과가 압축파일로 다운로드 되었습니다. 업로드하여 확인해주세요.");
       navigate("/result");
 
