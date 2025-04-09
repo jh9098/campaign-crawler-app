@@ -1,36 +1,35 @@
-# ✅ main.py (SSE 방식 실시간 전송)
-
-print("✅ CORS 설정 적용됨")
+# ✅ main.py
 
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+from sse_starlette.sse import EventSourceResponse
 from pydantic import BaseModel
 from crawler import run_crawler_streaming
 import asyncio
-from sse_starlette.sse import EventSourceResponse
+
 app = FastAPI()
 
-# CORS 설정
+# ✅ CORS 설정
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=["*"],  # 필요한 경우 Netlify 주소만 지정 가능
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-# OPTIONS preflight
+# ✅ OPTIONS 프리플라이트 처리
 @app.options("/crawl/stream")
 async def options_handler(request: Request):
     return JSONResponse(content={}, status_code=200)
 
-# SSE 응답용 GET 엔드포인트
+# ✅ SSE 엔드포인트
 @app.get("/crawl/stream")
 async def crawl_stream(
     session_cookie: str,
-    selected_days: str,         # e.g., "01일,02일"
-    exclude_keywords: str,      # e.g., "이발기,깔창"
+    selected_days: str,
+    exclude_keywords: str,
     use_full_range: bool = True,
     start_id: int = None,
     end_id: int = None
@@ -49,16 +48,22 @@ async def crawl_stream(
                 end_id=end_id
             ):
                 await asyncio.sleep(0.005)
-                if result["event"] == "hidden":
-                    yield f"event: hidden\ndata: {result['data']}\n\n"
-                elif result["event"] == "public":
-                    yield f"event: public\ndata: {result['data']}\n\n"
-                elif result["event"] == "done":
-                    yield f"event: done\ndata: {result['data']}\n\n"
-                elif result["event"] == "error":
-                    yield f"event: error\ndata: {result['data']}\n\n"
-                    return  # 에러 발생 시 종료
+                yield {
+                    "event": result["event"],
+                    "data": result["data"]
+                }
         except Exception as e:
-            yield f"event: error\ndata: {str(e)}\n\n"
+            yield {
+                "event": "error",
+                "data": str(e)
+            }
 
-    return EventSourceResponse(event_generator())
+    # ✅ CORS 헤더 명시적으로 추가
+    return EventSourceResponse(
+        event_generator(),
+        headers={
+            "Access-Control-Allow-Origin": "*",
+            "Cache-Control": "no-cache",
+            "X-Accel-Buffering": "no",  # nginx나 프록시가 버퍼링 방지
+        }
+    )
