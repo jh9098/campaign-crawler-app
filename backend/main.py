@@ -1,4 +1,4 @@
-# backend/main.py
+# ✅ main.py (10개씩 분할 저장 응답 + zip)
 
 print("✅ CORS 설정 적용됨")
 
@@ -9,24 +9,26 @@ from pydantic import BaseModel
 from crawler import run_crawler
 import io
 import zipfile
+import math
+
+def chunk_list(data, chunk_size):
+    for i in range(0, len(data), chunk_size):
+        yield data[i:i + chunk_size]
 
 app = FastAPI()
 
-# CORS 허용 설정
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # 또는 ["https://dbgapp.netlify.app"]
+    allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-# OPTIONS 프리플라이트 요청 허용
 @app.options("/crawl")
 async def options_handler(request: Request):
     return JSONResponse(content={}, status_code=200)
 
-# 요청 파라미터 모델
 class CrawlRequest(BaseModel):
     session_cookie: str
     selected_days: list[str]
@@ -48,18 +50,18 @@ async def crawl_handler(req: CrawlRequest):
             end_id=req.end_id
         )
 
-        # 결과 없으면 오류 반환
         if not hidden and not public:
             return JSONResponse(content={"error": "크롤링 결과가 없습니다."}, status_code=400)
 
         print(f"📦 숨김 캠페인 수: {len(hidden)}")
         print(f"📦 공개 캠페인 수: {len(public)}")
 
-        # 메모리 내 zip 파일 생성
         memory_file = io.BytesIO()
         with zipfile.ZipFile(memory_file, mode="w", compression=zipfile.ZIP_DEFLATED) as zf:
-            zf.writestr("result_hidden.txt", "\n".join(hidden))
-            zf.writestr("result_public.txt", "\n".join(public))
+            for i, chunk in enumerate(chunk_list(hidden, 10), 1):
+                zf.writestr(f"result_hidden_{i}.txt", "\n".join(chunk))
+            for i, chunk in enumerate(chunk_list(public, 10), 1):
+                zf.writestr(f"result_public_{i}.txt", "\n".join(chunk))
 
         memory_file.seek(0)
         print("✅ zip 파일 생성 완료")
