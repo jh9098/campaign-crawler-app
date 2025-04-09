@@ -45,7 +45,7 @@ def fetch_campaign_data(campaign_id, session, public_campaigns, selected_days, e
             participation_time = participation_time.replace("시에", "시 00분에")
 
         product_name_tag = soup.find("h3")
-        product_name = product_name_tag.text.strip() if product_name_tag else "상품명 없음"
+        product_name = product_name_tag.text.strip().replace("&", "") if product_name_tag else "상품명 없음"
 
         print(f"🔍 캠페인 {campaign_id} 참여 시간: {participation_time}")
         print(f"🔍 상품명: {product_name}")
