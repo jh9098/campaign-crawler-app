@@ -1,15 +1,13 @@
-# ✅ main.py
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from sse_starlette.sse import EventSourceResponse
 from crawler import run_crawler_streaming
 import asyncio
-import json
 
 app = FastAPI()
 
-# CORS 설정 (정확한 origin 지정)
+# CORS 허용
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["https://dbgapp.netlify.app"],
@@ -18,6 +16,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# OPTIONS 프리플라이트
 @app.options("/crawl/stream")
 async def options_handler(request: Request):
     headers = {
@@ -27,6 +26,7 @@ async def options_handler(request: Request):
     }
     return JSONResponse(content={}, status_code=200, headers=headers)
 
+# SSE 응답
 @app.get("/crawl/stream")
 async def crawl_stream(
     request: Request,
@@ -51,21 +51,22 @@ async def crawl_stream(
                 end_id=end_id
             ):
                 await asyncio.sleep(0.005)
-                data = result['data']
-                if not isinstance(data, str):
-                    data = json.dumps(data, ensure_ascii=False)
-                yield (
-                    f"event: {result['event']}\n"
-                    f"data: {data}\n\n"
-                )
+                yield {
+                    "event": result["event"],
+                    "data": result["data"]
+                }
         except Exception as e:
-            yield f"event: error\ndata: {json.dumps(str(e), ensure_ascii=False)}\n\n"
+            yield {
+                "event": "error",
+                "data": str(e)
+            }
 
+    # 직접 헤더 설정 포함
     return EventSourceResponse(
         event_generator(),
         headers={
             "Access-Control-Allow-Origin": "https://dbgapp.netlify.app",
             "Cache-Control": "no-cache",
-            "X-Accel-Buffering": "no"
+            "X-Accel-Buffering": "no",
         }
     )
