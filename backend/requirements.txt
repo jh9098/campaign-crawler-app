@@ -5,3 +5,4 @@ beautifulsoup4==4.12.3
 urllib3==2.2.1
 pydantic==1.10.13
 sse-starlette==1.6.5
+sse-starlette==1.4.0
