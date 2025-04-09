@@ -9,24 +9,43 @@ export default function Result() {
   const [status, setStatus] = useState("⏳ 데이터를 수신 중입니다...");
   const socketRef = useRef(null);
 
-  // 시간 기준 정렬
-  const sortByTime = (arr) => {
-    return [...arr].sort((a, b) => {
+  // ✅ 캠페인 번호 추출
+  const getCsq = (row) => {
+    const match = row.match(/csq=(\d+)/);
+    return match ? match[1] : null;
+  };
+
+  // ✅ 중복 제거 + 시간순 정렬
+  const insertUniqueSorted = (arr, newItem) => {
+    const csq = getCsq(newItem);
+    if (!csq) return arr;
+    const filtered = arr.filter((item) => getCsq(item) !== csq);
+    filtered.push(newItem);
+    return filtered.sort((a, b) => {
       const timeA = a.split(" & ")[5];
       const timeB = b.split(" & ")[5];
-      return timeA.localeCompare(timeB, "ko-KR");
+      return timeA.localeCompare(timeB);
     });
   };
 
-  // 🔁 페이지 진입 시 localStorage에서 복원
+  // ✅ 저장된 데이터 복원
   useEffect(() => {
-    const storedHidden = localStorage.getItem("hiddenResults");
-    const storedPublic = localStorage.getItem("publicResults");
-    if (storedHidden) setHiddenResults(JSON.parse(storedHidden));
-    if (storedPublic) setPublicResults(JSON.parse(storedPublic));
+    const savedHidden = JSON.parse(localStorage.getItem("hiddenResults") || "[]");
+    const savedPublic = JSON.parse(localStorage.getItem("publicResults") || "[]");
+    setHiddenResults(savedHidden);
+    setPublicResults(savedPublic);
   }, []);
 
-  // 🔌 WebSocket 연결 및 데이터 수신
+  // ✅ 변경 시 저장
+  useEffect(() => {
+    localStorage.setItem("hiddenResults", JSON.stringify(hiddenResults));
+  }, [hiddenResults]);
+
+  useEffect(() => {
+    localStorage.setItem("publicResults", JSON.stringify(publicResults));
+  }, [publicResults]);
+
+  // ✅ 소켓 연결 및 수신
   useEffect(() => {
     const urlParams = new URLSearchParams(window.location.search);
     const session_cookie = urlParams.get("session_cookie");
@@ -62,13 +81,9 @@ export default function Result() {
       const { event: type, data } = message;
 
       if (type === "hidden") {
-        const updated = sortByTime([...hiddenResults, data]);
-        setHiddenResults(updated);
-        localStorage.setItem("hiddenResults", JSON.stringify(updated));
+        setHiddenResults((prev) => insertUniqueSorted(prev, data));
       } else if (type === "public") {
-        const updated = sortByTime([...publicResults, data]);
-        setPublicResults(updated);
-        localStorage.setItem("publicResults", JSON.stringify(updated));
+        setPublicResults((prev) => insertUniqueSorted(prev, data));
       } else if (type === "done") {
         setStatus("✅ 데이터 수신 완료");
         socket.close();
@@ -89,11 +104,11 @@ export default function Result() {
     };
 
     return () => socket.close();
-  }, [hiddenResults, publicResults]);
+  }, []);
 
+  // ✅ 다운로드 함수
   const downloadTxt = (data, filename) => {
-    const sorted = sortByTime(data);
-    const blob = new Blob([sorted.join("\n")], { type: "text/plain" });
+    const blob = new Blob([data.join("\n")], { type: "text/plain" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
@@ -102,6 +117,7 @@ export default function Result() {
     URL.revokeObjectURL(url);
   };
 
+  // ✅ 테이블 렌더링 함수
   const renderTable = (data, title, isHidden) => {
     const keyword = isHidden ? filter.hidden : filter.public;
     const filtered = data.filter((row) => row.includes(keyword));
@@ -138,7 +154,11 @@ export default function Result() {
           style={{ marginBottom: 10, width: 300 }}
         />
 
-        <table border="1" cellPadding="6" style={{ borderCollapse: "collapse", width: "100%" }}>
+        <table
+          border="1"
+          cellPadding="6"
+          style={{ borderCollapse: "collapse", width: "100%" }}
+        >
           <thead>
             <tr>
               <th>No</th>
@@ -156,10 +176,9 @@ export default function Result() {
           <tbody>
             {filtered.map((row, idx) => {
               const [type, review, mall, price, point, time, name, url] = row.split(" & ");
-              const match = url.match(/csq=(\d+)/);
-              const csq = match ? match[1] : "-";
+              const csq = getCsq(url) || "-";
               return (
-                <tr key={idx}>
+                <tr key={csq + "_" + idx}>
                   <td>{idx + 1}</td>
                   <td>{type}</td>
                   <td>{review}</td>
