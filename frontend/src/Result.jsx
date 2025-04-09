@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 
 export default function Result() {
@@ -7,21 +7,30 @@ export default function Result() {
   const [publicResults, setPublicResults] = useState([]);
   const [filter, setFilter] = useState({ hidden: "", public: "" });
 
-  useEffect(() => {
-    const hidden = JSON.parse(localStorage.getItem("result_hidden") || "[]");
-    const publicData = JSON.parse(localStorage.getItem("result_public") || "[]");
+  const handleFileUpload = (event, isHidden) => {
+    const files = Array.from(event.target.files);
+    const readerPromises = files.map(
+      (file) =>
+        new Promise((resolve) => {
+          const reader = new FileReader();
+          reader.onload = () => resolve(reader.result);
+          reader.readAsText(file);
+        })
+    );
 
-    const sortByTime = (arr) => {
-      return [...arr].sort((a, b) => {
-        const timeA = a.split(" & ")[5];
-        const timeB = b.split(" & ")[5];
-        return timeA.localeCompare(timeB);
-      });
-    };
-
-    setHiddenResults(sortByTime(hidden));
-    setPublicResults(sortByTime(publicData));
-  }, []);
+    Promise.all(readerPromises).then((contents) => {
+      const merged = contents
+        .flatMap((text) => text.split("\n"))
+        .filter((line) => line.trim() !== "")
+        .sort((a, b) => {
+          const timeA = a.split(" & ")[5];
+          const timeB = b.split(" & ")[5];
+          return timeA.localeCompare(timeB);
+        });
+      if (isHidden) setHiddenResults(merged);
+      else setPublicResults(merged);
+    });
+  };
 
   const downloadTxt = (data, filename) => {
     const blob = new Blob([data.join("\n")], { type: "text/plain" });
@@ -87,16 +96,17 @@ export default function Result() {
     );
   };
 
-  const revisitResults = () => {
-    window.location.reload(); // 데이터를 다시 읽고 정렬하도록 강제 리렌더링
-  };
-
   return (
     <div style={{ padding: 20 }}>
-      <h2>🧾 크롤링 결과</h2>
-      <button onClick={() => navigate("/")}>🔙 처음으로</button>
-      <button onClick={revisitResults} style={{ marginLeft: 10 }}>📂 결과 다시 보기</button>
-      <br /><br />
+      <h2>🧾 크롤링 결과 업로드 보기</h2>
+      <button onClick={() => navigate("/")}>🔙 처음으로</button><br /><br />
+
+      <label>🔒 숨겨진 캠페인 파일 업로드 (.txt 여러 개 가능):</label><br />
+      <input type="file" multiple accept=".txt" onChange={(e) => handleFileUpload(e, true)} /><br /><br />
+
+      <label>🌐 공개 캠페인 파일 업로드 (.txt 여러 개 가능):</label><br />
+      <input type="file" multiple accept=".txt" onChange={(e) => handleFileUpload(e, false)} /><br /><br />
+
       {renderTable(hiddenResults, "🔒 숨겨진 캠페인", true)}
       {renderTable(publicResults, "🌐 공개 캠페인", false)}
     </div>
