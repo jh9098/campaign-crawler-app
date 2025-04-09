@@ -4,7 +4,7 @@ from fastapi.responses import JSONResponse
 from sse_starlette.sse import EventSourceResponse
 from crawler import run_crawler_streaming
 import asyncio
-
+import json
 app = FastAPI()
 
 # ✅ 일반적인 요청(CORS 대응)
@@ -51,9 +51,14 @@ async def crawl_stream(
                 end_id=end_id
             ):
                 await asyncio.sleep(0.005)
-                yield f"event: {result['event']}\ndata: {result['data']}\n\n"
+                # ✅ data는 반드시 문자열이어야 하고 \n\n 로 구분해야 함
+                yield (
+                    f"event: {result['event']}\n"
+                    f"data: {json.dumps(result['data'])}\n\n"
+                )
         except Exception as e:
-            yield f"event: error\ndata: {str(e)}\n\n"
+            yield f"event: error\ndata: {json.dumps(str(e))}\n\n"
+
 
     return EventSourceResponse(
         event_generator(),
