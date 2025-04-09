@@ -34,7 +34,7 @@ def fetch_campaign_data(campaign_id, session, public_campaigns, selected_days, e
     try:
         response = session.get(url, verify=False, timeout=10)
         response.raise_for_status()
-        soup = BeautifulSoup(response.text, "html.parser")
+        soup = BeautifulSoup(response.text, "lxml")
 
         if soup.find("script", string="window.location.href = '/usr/login_form';"):
             return None
