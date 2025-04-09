@@ -8,7 +8,7 @@ from fastapi.responses import JSONResponse, EventSourceResponse
 from pydantic import BaseModel
 from crawler import run_crawler_streaming
 import asyncio
-
+from sse_starlette.sse import EventSourceResponse
 app = FastAPI()
 
 # CORS 설정
