@@ -51,22 +51,16 @@ async def crawl_stream(
                 end_id=end_id
             ):
                 await asyncio.sleep(0.005)
-                yield {
-                    "event": result["event"],
-                    "data": result["data"]
-                }
+                # 👇 여기서 JSON으로 감싸지 않고 문자열 그대로 보냅니다.
+                yield f"event: {result['event']}\ndata: {result['data']}\n\n"
         except Exception as e:
-            yield {
-                "event": "error",
-                "data": str(e)
-            }
+            yield f"event: error\ndata: {str(e)}\n\n"
 
-    # 직접 헤더 설정 포함
     return EventSourceResponse(
         event_generator(),
         headers={
             "Access-Control-Allow-Origin": "https://dbgapp.netlify.app",
             "Cache-Control": "no-cache",
-            "X-Accel-Buffering": "no",
+            "X-Accel-Buffering": "no"
         }
     )
