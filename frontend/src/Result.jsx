@@ -9,7 +9,7 @@ export default function Result() {
   const [status, setStatus] = useState("⏳ 데이터를 수신 중입니다...");
   const socketRef = useRef(null);
 
-  // 시간 기준 정렬 함수
+  // 시간 기준 정렬
   const sortByTime = (arr) => {
     return [...arr].sort((a, b) => {
       const timeA = a.split(" & ")[5];
@@ -18,6 +18,15 @@ export default function Result() {
     });
   };
 
+  // 🔁 페이지 진입 시 localStorage에서 복원
+  useEffect(() => {
+    const storedHidden = localStorage.getItem("hiddenResults");
+    const storedPublic = localStorage.getItem("publicResults");
+    if (storedHidden) setHiddenResults(JSON.parse(storedHidden));
+    if (storedPublic) setPublicResults(JSON.parse(storedPublic));
+  }, []);
+
+  // 🔌 WebSocket 연결 및 데이터 수신
   useEffect(() => {
     const urlParams = new URLSearchParams(window.location.search);
     const session_cookie = urlParams.get("session_cookie");
@@ -53,9 +62,13 @@ export default function Result() {
       const { event: type, data } = message;
 
       if (type === "hidden") {
-        setHiddenResults((prev) => sortByTime([...prev, data]));
+        const updated = sortByTime([...hiddenResults, data]);
+        setHiddenResults(updated);
+        localStorage.setItem("hiddenResults", JSON.stringify(updated));
       } else if (type === "public") {
-        setPublicResults((prev) => sortByTime([...prev, data]));
+        const updated = sortByTime([...publicResults, data]);
+        setPublicResults(updated);
+        localStorage.setItem("publicResults", JSON.stringify(updated));
       } else if (type === "done") {
         setStatus("✅ 데이터 수신 완료");
         socket.close();
@@ -76,7 +89,7 @@ export default function Result() {
     };
 
     return () => socket.close();
-  }, []);
+  }, [hiddenResults, publicResults]);
 
   const downloadTxt = (data, filename) => {
     const sorted = sortByTime(data);
