@@ -16,17 +16,20 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# OPTIONS 프리플라이트
+# OPTIONS 프리플라이트 요청 대응
 @app.options("/crawl/stream")
 async def options_handler(request: Request):
-    headers = {
-        "Access-Control-Allow-Origin": "https://dbgapp.netlify.app",
-        "Access-Control-Allow-Methods": "GET, OPTIONS",
-        "Access-Control-Allow-Headers": "*",
-    }
-    return JSONResponse(content={}, status_code=200, headers=headers)
+    return JSONResponse(
+        content={},
+        status_code=200,
+        headers={
+            "Access-Control-Allow-Origin": "https://dbgapp.netlify.app",
+            "Access-Control-Allow-Methods": "GET, OPTIONS",
+            "Access-Control-Allow-Headers": "*",
+        }
+    )
 
-# SSE 응답
+# SSE 스트리밍 핸들러
 @app.get("/crawl/stream")
 async def crawl_stream(
     request: Request,
@@ -51,7 +54,7 @@ async def crawl_stream(
                 end_id=end_id
             ):
                 await asyncio.sleep(0.005)
-                # 👇 여기서 JSON으로 감싸지 않고 문자열 그대로 보냅니다.
+                # ✅ 문자열로 직접 포맷팅 (중요!!)
                 yield f"event: {result['event']}\ndata: {result['data']}\n\n"
         except Exception as e:
             yield f"event: error\ndata: {str(e)}\n\n"
@@ -61,6 +64,6 @@ async def crawl_stream(
         headers={
             "Access-Control-Allow-Origin": "https://dbgapp.netlify.app",
             "Cache-Control": "no-cache",
-            "X-Accel-Buffering": "no"
+            "X-Accel-Buffering": "no",  # nginx나 프록시 캐싱 방지
         }
     )
