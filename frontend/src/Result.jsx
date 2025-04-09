@@ -186,10 +186,8 @@ export default function Result() {
           {filtered.map((row, idx) => {
             const [type, review, mall, price, point, time, name, url] = row.split(" & ");
             const csq = getCsq(url) || "-";
-
-            // 전체 data 배열에서의 실제 index 계산
             const realIndex = data.findIndex((item) => item === row);
-
+        
             return (
               <tr key={csq + "_" + idx}>
                 <td>
@@ -209,7 +207,7 @@ export default function Result() {
                 <td>{type}</td>
                 <td>{review}</td>
                 <td>{mall}</td>
-                <td>{price}</td>
+                <td>{Number(price.replace(/[^\d]/g, "")).toLocaleString("ko-KR")}</td>
                 <td>{point}</td>
                 <td>{time}</td>
                 <td>{name}</td>
