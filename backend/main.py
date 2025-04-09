@@ -5,7 +5,11 @@ from bs4 import BeautifulSoup
 import re
 import urllib3
 import time
-
+from fastapi import FastAPI
+app = FastAPI()
+@app.get("/")
+async def root():
+    return {"message": "Hello, world"}
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 MAIN_URL = "https://dbg.shopreview.co.kr/usr"
