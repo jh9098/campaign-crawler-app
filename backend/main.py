@@ -44,7 +44,7 @@ async def websocket_endpoint(websocket: WebSocket):
                 start_id=start_id,
                 end_id=end_id
             ):
-                await asyncio.sleep(0.005)
+                await asyncio.sleep(0.001)
                 await websocket.send_text(json.dumps(result))
             await websocket.send_text(json.dumps({"event": "done", "data": "크롤링 완료"}))
 
