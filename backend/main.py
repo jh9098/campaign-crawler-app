@@ -1,19 +1,14 @@
-# ✅ main.py (10개씩 분할 저장 응답 + zip)
+# ✅ main.py (SSE 방식 실시간 결과 전송)
 
 print("✅ CORS 설정 적용됨")
 
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse, StreamingResponse
+from fastapi.responses import JSONResponse
+from fastapi.responses import EventSourceResponse
 from pydantic import BaseModel
-from crawler import run_crawler
-import io
-import zipfile
-import math
-
-def chunk_list(data, chunk_size):
-    for i in range(0, len(data), chunk_size):
-        yield data[i:i + chunk_size]
+from crawler import run_crawler_streaming
+import asyncio
 
 app = FastAPI()
 
@@ -25,53 +20,39 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-@app.options("/crawl")
+@app.options("/crawl/stream")
 async def options_handler(request: Request):
     return JSONResponse(content={}, status_code=200)
 
-class CrawlRequest(BaseModel):
-    session_cookie: str
-    selected_days: list[str]
-    exclude_keywords: list[str]
-    use_full_range: bool = True
-    start_id: int | None = None
-    end_id: int | None = None
+@app.get("/crawl/stream")
+async def crawl_stream(
+    session_cookie: str,
+    selected_days: str,       # "01일,02일"
+    exclude_keywords: str,    # "이발기,깔창"
+    use_full_range: bool = True,
+    start_id: int = None,
+    end_id: int = None
+):
+    selected_days_list = [d.strip() for d in selected_days.split(",") if d.strip()]
+    exclude_keywords_list = [k.strip() for k in exclude_keywords.split(",") if k.strip()]
 
-@app.post("/crawl")
-async def crawl_handler(req: CrawlRequest):
-    try:
-        print("📥 크롤링 요청 수신됨")
-        hidden, public = run_crawler(
-            session_cookie=req.session_cookie,
-            selected_days=req.selected_days,
-            exclude_keywords=req.exclude_keywords,
-            use_full_range=req.use_full_range,
-            start_id=req.start_id,
-            end_id=req.end_id
-        )
+    async def event_generator():
+        try:
+            for h, p in run_crawler_streaming(
+                session_cookie=session_cookie,
+                selected_days=selected_days_list,
+                exclude_keywords=exclude_keywords_list,
+                use_full_range=use_full_range,
+                start_id=start_id,
+                end_id=end_id
+            ):
+                await asyncio.sleep(0.005)
+                if h:
+                    yield f"event: hidden\ndata: {h}\n\n"
+                if p:
+                    yield f"event: public\ndata: {p}\n\n"
+            yield "event: done\ndata: 완료\n\n"
+        except Exception as e:
+            yield f"event: error\ndata: {str(e)}\n\n"
 
-        if not hidden and not public:
-            return JSONResponse(content={"error": "크롤링 결과가 없습니다."}, status_code=400)
-
-        print(f"📦 숨김 캠페인 수: {len(hidden)}")
-        print(f"📦 공개 캠페인 수: {len(public)}")
-
-        memory_file = io.BytesIO()
-        with zipfile.ZipFile(memory_file, mode="w", compression=zipfile.ZIP_DEFLATED) as zf:
-            for i, chunk in enumerate(chunk_list(hidden, 10), 1):
-                zf.writestr(f"result_hidden_{i}.txt", "\n".join(chunk))
-            for i, chunk in enumerate(chunk_list(public, 10), 1):
-                zf.writestr(f"result_public_{i}.txt", "\n".join(chunk))
-
-        memory_file.seek(0)
-        print("✅ zip 파일 생성 완료")
-
-        return StreamingResponse(
-            memory_file,
-            media_type="application/zip",
-            headers={"Content-Disposition": "attachment; filename=campaign_results.zip"}
-        )
-
-    except Exception as e:
-        print("❌ 서버 처리 중 오류 발생:", str(e))
-        return JSONResponse(content={"error": str(e)}, status_code=500)
+    return EventSourceResponse(event_generator())
