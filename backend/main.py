@@ -1,15 +1,19 @@
+print("✅ CORS 설정 적용됨")
+
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
-from sse_starlette.sse import EventSourceResponse
+from pydantic import BaseModel
 from crawler import run_crawler_streaming
 import asyncio
+from sse_starlette.sse import EventSourceResponse
 
 app = FastAPI()
 
+# ✅ CORS 미들웨어 설정 (전체 허용)
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=["*"],  # 또는 ['https://dbgapp.netlify.app'] 처럼 명시적으로 지정 가능
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -21,6 +25,7 @@ async def options_handler(request: Request):
 
 @app.get("/crawl/stream")
 async def crawl_stream(
+    request: Request,
     session_cookie: str,
     selected_days: str,
     exclude_keywords: str,
@@ -54,11 +59,13 @@ async def crawl_stream(
         except Exception as e:
             yield f"event: error\ndata: {str(e)}\n\n"
 
+    # ✅ SSE에 직접 헤더 삽입
     return EventSourceResponse(
         event_generator(),
         headers={
-            "Access-Control-Allow-Origin": "*",
+            "Access-Control-Allow-Origin": "*",  # 또는 "https://dbgapp.netlify.app"
             "Cache-Control": "no-cache",
-            "X-Accel-Buffering": "no"
+            "Connection": "keep-alive",
+            "Content-Type": "text/event-stream",
         }
     )
