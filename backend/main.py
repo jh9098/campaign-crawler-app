@@ -4,10 +4,10 @@ from fastapi.responses import JSONResponse
 from sse_starlette.sse import EventSourceResponse
 from crawler import run_crawler_streaming
 import asyncio
+import json
 
 app = FastAPI()
 
-# CORS 허용
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["https://dbgapp.netlify.app"],
@@ -16,7 +16,6 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# OPTIONS 프리플라이트 요청 대응
 @app.options("/crawl/stream")
 async def options_handler(request: Request):
     return JSONResponse(
@@ -29,7 +28,6 @@ async def options_handler(request: Request):
         }
     )
 
-# SSE 스트리밍 핸들러
 @app.get("/crawl/stream")
 async def crawl_stream(
     request: Request,
@@ -54,16 +52,19 @@ async def crawl_stream(
                 end_id=end_id
             ):
                 await asyncio.sleep(0.005)
-                # ✅ 문자열로 직접 포맷팅 (중요!!)
-                yield f"event: {result['event']}\ndata: {result['data']}\n\n"
+                yield (
+                    f"event: {result['event']}\n"
+                    f"data: {json.dumps(result['data'], ensure_ascii=False)}\n\n"
+                )
         except Exception as e:
-            yield f"event: error\ndata: {str(e)}\n\n"
+            yield f"event: error\ndata: {json.dumps(str(e), ensure_ascii=False)}\n\n"
 
     return EventSourceResponse(
         event_generator(),
         headers={
             "Access-Control-Allow-Origin": "https://dbgapp.netlify.app",
             "Cache-Control": "no-cache",
-            "X-Accel-Buffering": "no",  # nginx나 프록시 캐싱 방지
+            "X-Accel-Buffering": "no",
+            "Content-Type": "text/event-stream; charset=utf-8",  # 👈 추가
         }
     )
