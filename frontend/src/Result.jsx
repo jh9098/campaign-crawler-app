@@ -119,88 +119,114 @@ export default function Result() {
 
   // ✅ 테이블 렌더링 함수
   const renderTable = (data, title, isHidden) => {
-    const keyword = isHidden ? filter.hidden : filter.public;
-    const filtered = data.filter((row) => row.includes(keyword));
+  const keyword = isHidden ? filter.hidden : filter.public;
+  const filtered = data.filter((row) => row.includes(keyword));
+  const setData = isHidden ? setHiddenResults : setPublicResults;
 
-    return (
-      <div style={{ marginBottom: 40 }}>
-        <h3>
-          {title} ({filtered.length}건)
-          <button
-            onClick={() =>
-              downloadTxt(filtered, isHidden ? "숨김캠페인.txt" : "공개캠페인.txt")
-            }
-            style={{
-              marginLeft: 12,
-              padding: "4px 10px",
-              fontSize: 14,
-              display: data.length > 0 ? "inline-block" : "none",
-            }}
-          >
-            📥 다운로드
-          </button>
-        </h3>
-
-        <input
-          type="text"
-          placeholder="🔎 필터링할 키워드를 입력하세요"
-          value={keyword}
-          onChange={(e) =>
-            setFilter((prev) => ({
-              ...prev,
-              [isHidden ? "hidden" : "public"]: e.target.value,
-            }))
-          }
-          style={{ marginBottom: 10, width: 300 }}
-        />
-
-        <table
-          border="1"
-          cellPadding="6"
-          style={{ borderCollapse: "collapse", width: "100%" }}
-        >
-          <thead>
-            <tr>
-              <th>No</th>
-              <th>구분</th>
-              <th>리뷰</th>
-              <th>쇼핑몰</th>
-              <th>가격</th>
-              <th>포인트</th>
-              <th>시간</th>
-              <th>상품명</th>
-              <th>링크</th>
-              <th>번호</th>
-            </tr>
-          </thead>
-          <tbody>
-            {filtered.map((row, idx) => {
-              const [type, review, mall, price, point, time, name, url] = row.split(" & ");
-              const csq = getCsq(url) || "-";
-              return (
-                <tr key={csq + "_" + idx}>
-                  <td>{idx + 1}</td>
-                  <td>{type}</td>
-                  <td>{review}</td>
-                  <td>{mall}</td>
-                  <td>{price}</td>
-                  <td>{point}</td>
-                  <td>{time}</td>
-                  <td>{name}</td>
-                  <td>
-                    <a href={url} target="_blank" rel="noreferrer">
-                      바로가기
-                    </a>
-                  </td>
-                  <td>{csq}</td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
-      </div>
-    );
+  const handleDelete = (idxToDelete) => {
+    setData((prev) => {
+      const updated = [...prev];
+      updated.splice(idxToDelete, 1);
+      return updated;
+    });
   };
+
+  return (
+    <div style={{ marginBottom: 40 }}>
+      <h3>
+        {title} ({filtered.length}건)
+        <button
+          onClick={() =>
+            downloadTxt(filtered, isHidden ? "숨김캠페인.txt" : "공개캠페인.txt")
+          }
+          style={{
+            marginLeft: 12,
+            padding: "4px 10px",
+            fontSize: 14,
+            display: data.length > 0 ? "inline-block" : "none",
+          }}
+        >
+          📥 다운로드
+        </button>
+      </h3>
+
+      <input
+        type="text"
+        placeholder="🔎 필터링할 키워드를 입력하세요"
+        value={keyword}
+        onChange={(e) =>
+          setFilter((prev) => ({
+            ...prev,
+            [isHidden ? "hidden" : "public"]: e.target.value,
+          }))
+        }
+        style={{ marginBottom: 10, width: 300 }}
+      />
+
+      <table
+        border="1"
+        cellPadding="6"
+        style={{ borderCollapse: "collapse", width: "100%" }}
+      >
+        <thead>
+          <tr>
+            <th>삭제</th>
+            <th>구분</th>
+            <th>리뷰</th>
+            <th>쇼핑몰</th>
+            <th>가격</th>
+            <th>포인트</th>
+            <th>시간</th>
+            <th>상품명</th>
+            <th>링크</th>
+            <th>번호</th>
+          </tr>
+        </thead>
+        <tbody>
+          {filtered.map((row, idx) => {
+            const [type, review, mall, price, point, time, name, url] = row.split(" & ");
+            const csq = getCsq(url) || "-";
+
+            // 전체 data 배열에서의 실제 index 계산
+            const realIndex = data.findIndex((item) => item === row);
+
+            return (
+              <tr key={csq + "_" + idx}>
+                <td>
+                  <button
+                    onClick={() => handleDelete(realIndex)}
+                    style={{
+                      backgroundColor: "red",
+                      color: "white",
+                      border: "none",
+                      padding: "4px 8px",
+                      cursor: "pointer",
+                    }}
+                  >
+                    삭제
+                  </button>
+                </td>
+                <td>{type}</td>
+                <td>{review}</td>
+                <td>{mall}</td>
+                <td>{price}</td>
+                <td>{point}</td>
+                <td>{time}</td>
+                <td>{name}</td>
+                <td>
+                  <a href={url} target="_blank" rel="noreferrer">
+                    바로가기
+                  </a>
+                </td>
+                <td>{csq}</td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+    </div>
+  );
+};
 
   return (
     <div style={{ padding: 20 }}>
