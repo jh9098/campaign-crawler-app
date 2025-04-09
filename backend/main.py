@@ -43,6 +43,10 @@ async def crawl_stream(
 
     async def event_generator():
         try:
+            # ✅ 연결 유지용 ping
+            yield f"event: ping\ndata: 연결유지\n\n"
+            await asyncio.sleep(0.1)
+
             for result in run_crawler_streaming(
                 session_cookie=session_cookie,
                 selected_days=selected_days_list,
@@ -65,6 +69,6 @@ async def crawl_stream(
             "Access-Control-Allow-Origin": "https://dbgapp.netlify.app",
             "Cache-Control": "no-cache",
             "X-Accel-Buffering": "no",
-            "Content-Type": "text/event-stream; charset=utf-8",  # 👈 추가
+            "Content-Type": "text/event-stream; charset=utf-8",
         }
     )
