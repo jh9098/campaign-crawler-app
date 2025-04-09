@@ -1,4 +1,4 @@
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from sse_starlette.sse import EventSourceResponse
@@ -7,22 +7,29 @@ import asyncio
 
 app = FastAPI()
 
-# 일반 CORS 설정
+# ✅ CORS 허용 - 일반 요청용
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # <- 반드시 * 또는 frontend origin 명시
+    allow_origins=["*"],  # 또는 ["https://dbgapp.netlify.app"]
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-# OPTIONS 프리플라이트 핸들링
+# ✅ 프리플라이트 OPTIONS 대응
 @app.options("/crawl/stream")
 async def options_handler(request: Request):
-    return JSONResponse(content={}, status_code=200)
+    headers = {
+        "Access-Control-Allow-Origin": "*",  # 또는 Netlify 도메인
+        "Access-Control-Allow-Methods": "GET, OPTIONS",
+        "Access-Control-Allow-Headers": "*",
+    }
+    return JSONResponse(content={}, status_code=200, headers=headers)
 
+# ✅ SSE 스트리밍 엔드포인트
 @app.get("/crawl/stream")
 async def crawl_stream(
+    request: Request,
     session_cookie: str,
     selected_days: str,
     exclude_keywords: str,
@@ -48,12 +55,12 @@ async def crawl_stream(
         except Exception as e:
             yield f"event: error\ndata: {str(e)}\n\n"
 
-    # 👇 여기서 반드시 CORS 허용 헤더를 직접 명시해야 함
+    # ✅ SSE 전용 CORS 헤더 명시
     return EventSourceResponse(
         event_generator(),
         headers={
-            "Access-Control-Allow-Origin": "*",  # 또는 "https://dbgapp.netlify.app"
+            "Access-Control-Allow-Origin": "*",  # 또는 정확한 도메인: "https://dbgapp.netlify.app"
             "Cache-Control": "no-cache",
-            "X-Accel-Buffering": "no"  # 일부 리버스 프록시에서 SSE 버퍼링 방지
+            "X-Accel-Buffering": "no",
         }
     )
