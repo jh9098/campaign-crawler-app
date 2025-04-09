@@ -1,5 +1,3 @@
-print("✅ CORS 설정 적용됨")
-
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
@@ -10,10 +8,9 @@ from sse_starlette.sse import EventSourceResponse
 
 app = FastAPI()
 
-# ✅ CORS 미들웨어 설정 (전체 허용)
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # 또는 ['https://dbgapp.netlify.app'] 처럼 명시적으로 지정 가능
+    allow_origins=["*"],  # <-- 여기가 일반 요청은 커버하지만 SSE엔 직접 헤더 추가해야 함
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -25,7 +22,6 @@ async def options_handler(request: Request):
 
 @app.get("/crawl/stream")
 async def crawl_stream(
-    request: Request,
     session_cookie: str,
     selected_days: str,
     exclude_keywords: str,
@@ -59,13 +55,8 @@ async def crawl_stream(
         except Exception as e:
             yield f"event: error\ndata: {str(e)}\n\n"
 
-    # ✅ SSE에 직접 헤더 삽입
+    # ✅ 핵심: CORS 헤더 수동 추가
     return EventSourceResponse(
         event_generator(),
-        headers={
-            "Access-Control-Allow-Origin": "*",  # 또는 "https://dbgapp.netlify.app"
-            "Cache-Control": "no-cache",
-            "Connection": "keep-alive",
-            "Content-Type": "text/event-stream",
-        }
+        headers={"Access-Control-Allow-Origin": "*"}
     )
