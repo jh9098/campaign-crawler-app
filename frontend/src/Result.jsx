@@ -9,6 +9,15 @@ export default function Result() {
   const [status, setStatus] = useState("⏳ 데이터를 수신 중입니다...");
   const socketRef = useRef(null);
 
+  // 시간 기준 정렬 함수
+  const sortByTime = (arr) => {
+    return [...arr].sort((a, b) => {
+      const timeA = a.split(" & ")[5];
+      const timeB = b.split(" & ")[5];
+      return timeA.localeCompare(timeB, "ko-KR");
+    });
+  };
+
   useEffect(() => {
     const urlParams = new URLSearchParams(window.location.search);
     const session_cookie = urlParams.get("session_cookie");
@@ -43,9 +52,11 @@ export default function Result() {
       const message = JSON.parse(event.data);
       const { event: type, data } = message;
 
-      if (type === "hidden") setHiddenResults((prev) => [...prev, data]);
-      else if (type === "public") setPublicResults((prev) => [...prev, data]);
-      else if (type === "done") {
+      if (type === "hidden") {
+        setHiddenResults((prev) => sortByTime([...prev, data]));
+      } else if (type === "public") {
+        setPublicResults((prev) => sortByTime([...prev, data]));
+      } else if (type === "done") {
         setStatus("✅ 데이터 수신 완료");
         socket.close();
       } else if (type === "error") {
@@ -68,11 +79,7 @@ export default function Result() {
   }, []);
 
   const downloadTxt = (data, filename) => {
-    const sorted = [...data].sort((a, b) => {
-      const timeA = a.split(" & ")[5];
-      const timeB = b.split(" & ")[5];
-      return timeA.localeCompare(timeB);
-    });
+    const sorted = sortByTime(data);
     const blob = new Blob([sorted.join("\n")], { type: "text/plain" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
