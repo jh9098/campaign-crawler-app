@@ -1,13 +1,12 @@
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
-from sse_starlette.sse import EventSourceResponse
 from crawler import run_crawler_streaming
-import asyncio
 import json
+import asyncio
 
 app = FastAPI()
 
+# CORS 설정
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["https://dbgapp.netlify.app"],
@@ -16,52 +15,38 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-@app.options("/crawl/stream")
-async def options_handler(request: Request):
-    return JSONResponse(
-        content={}, status_code=200,
-        headers={
-            "Access-Control-Allow-Origin": "https://dbgapp.netlify.app",
-            "Access-Control-Allow-Methods": "GET, OPTIONS",
-            "Access-Control-Allow-Headers": "*",
-        }
-    )
-
-@app.get("/crawl/stream")
-async def crawl_stream(
-    request: Request,
-    session_cookie: str,
-    selected_days: str,
-    exclude_keywords: str,
-    use_full_range: bool = True,
-    start_id: int = None,
-    end_id: int = None
+@app.websocket("/ws/crawl")
+async def websocket_crawler(
+    websocket: WebSocket,
 ):
-    selected_days_list = [d.strip() for d in selected_days.split(",") if d.strip()]
-    exclude_keywords_list = [k.strip() for k in exclude_keywords.split(",") if k.strip()]
+    await websocket.accept()
 
-    async def event_generator():
-        try:
-            for result in run_crawler_streaming(
-                session_cookie=session_cookie,
-                selected_days=selected_days_list,
-                exclude_keywords=exclude_keywords_list,
-                use_full_range=use_full_range,
-                start_id=start_id,
-                end_id=end_id
-            ):
-                await asyncio.sleep(0.005)
-                # 문자열로 직렬화
-                yield f"event: {result['event']}\ndata: {json.dumps(result['data'])}\n\n"
-        except Exception as e:
-            yield f"event: error\ndata: {json.dumps(str(e))}\n\n"
+    try:
+        # Step 1: 최초 메시지 수신 (파라미터)
+        init_data = await websocket.receive_json()
+        session_cookie = init_data["session_cookie"]
+        selected_days = [d.strip() for d in init_data["selected_days"].split(",")]
+        exclude_keywords = [k.strip() for k in init_data["exclude_keywords"].split(",")]
+        use_full_range = init_data.get("use_full_range", True)
+        start_id = init_data.get("start_id")
+        end_id = init_data.get("end_id")
 
-    return EventSourceResponse(
-        event_generator(),
-        headers={
-            "Access-Control-Allow-Origin": "https://dbgapp.netlify.app",
-            "Cache-Control": "no-cache",
-            "X-Accel-Buffering": "no",  # proxy 버퍼 방지
-        },
-        media_type="text/event-stream",  # 👉 SSE 명시적으로 지정
-    )
+        # Step 2: 크롤링 실행
+        for result in run_crawler_streaming(
+            session_cookie=session_cookie,
+            selected_days=selected_days,
+            exclude_keywords=exclude_keywords,
+            use_full_range=use_full_range,
+            start_id=start_id,
+            end_id=end_id
+        ):
+            await asyncio.sleep(0.01)
+            await websocket.send_json(result)
+
+        await websocket.send_json({"event": "done", "data": "크롤링 완료"})
+
+    except WebSocketDisconnect:
+        print("❌ 클라이언트 연결 종료됨")
+    except Exception as e:
+        await websocket.send_json({"event": "error", "data": str(e)})
+        await websocket.close()
