@@ -5,6 +5,7 @@ from bs4 import BeautifulSoup
 import re
 import urllib3
 import time
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
@@ -129,13 +130,21 @@ def run_crawler_streaming(session_cookie, selected_days, exclude_keywords, use_f
         yield {"event": "error", "data": "수동 범위 사용 시 start_id, end_id는 필수입니다."}
         return
 
-    for cid in range(start_id, end_id + 1):
-        result = fetch_campaign_data(cid, session, public_campaigns, selected_days, exclude_keywords)
-        if result:
-            h, p = result
-            if h:
-                yield {"event": "hidden", "data": h}
-            if p:
-                yield {"event": "public", "data": p}
+    def task(cid):
+        return fetch_campaign_data(cid, session, public_campaigns, selected_days, exclude_keywords)
+
+    with ThreadPoolExecutor(max_workers=5) as executor:  # ✅ 병렬 처리
+        futures = {executor.submit(task, cid): cid for cid in range(start_id, end_id + 1)}
+        for future in as_completed(futures):
+            try:
+                result = future.result()
+                if result:
+                    h, p = result
+                    if h:
+                        yield {"event": "hidden", "data": h}
+                    if p:
+                        yield {"event": "public", "data": p}
+            except Exception:
+                continue
 
     yield {"event": "done", "data": "크롤링 완료"}
