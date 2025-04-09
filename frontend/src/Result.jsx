@@ -41,11 +41,11 @@ export default function Result() {
     eventSourceRef.current = eventSource;
 
     eventSource.addEventListener("hidden", (e) => {
-      if (e?.data) setHiddenResults((prev) => [...prev, e.data]);
+      if (e?.data) setHiddenResults((prev) => [...prev, JSON.parse(e.data)]);
     });
 
     eventSource.addEventListener("public", (e) => {
-      if (e?.data) setPublicResults((prev) => [...prev, e.data]);
+      if (e?.data) setPublicResults((prev) => [...prev, JSON.parse(e.data)]);
     });
 
     eventSource.addEventListener("done", () => {
