@@ -7,7 +7,9 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 from crawler import run_crawler
-
+from fastapi.responses import StreamingResponse
+import io
+import zipfile
 app = FastAPI()
 
 # ✅ CORS 설정
@@ -45,6 +47,17 @@ async def crawl_handler(req: CrawlRequest):
             end_id=req.end_id
         )
 
-        return {"hidden": hidden, "public": public}
+        memory_file = io.BytesIO()
+        with zipfile.ZipFile(memory_file, mode="w", compression=zipfile.ZIP_DEFLATED) as zf:
+            zf.writestr("result_hidden.txt", "\n".join(hidden))
+            zf.writestr("result_public.txt", "\n".join(public))
+
+        memory_file.seek(0)
+        return StreamingResponse(
+            memory_file,
+            media_type="application/zip",
+            headers={"Content-Disposition": "attachment; filename=campaign_results.zip"}
+        )
+
     except Exception as e:
         return {"error": str(e)}
