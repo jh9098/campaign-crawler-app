@@ -1,3 +1,4 @@
+# ✅ main.py
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
@@ -5,18 +6,18 @@ from sse_starlette.sse import EventSourceResponse
 from crawler import run_crawler_streaming
 import asyncio
 import json
+
 app = FastAPI()
 
-# ✅ 일반적인 요청(CORS 대응)
+# CORS 설정 (정확한 origin 지정)
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["https://dbgapp.netlify.app"],  # 정확한 origin 명시
+    allow_origins=["https://dbgapp.netlify.app"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-# ✅ OPTIONS 요청 대응 (SSE 프리플라이트 대응)
 @app.options("/crawl/stream")
 async def options_handler(request: Request):
     headers = {
@@ -26,7 +27,6 @@ async def options_handler(request: Request):
     }
     return JSONResponse(content={}, status_code=200, headers=headers)
 
-# ✅ SSE 엔드포인트 (헤더 직접 명시)
 @app.get("/crawl/stream")
 async def crawl_stream(
     request: Request,
@@ -51,21 +51,21 @@ async def crawl_stream(
                 end_id=end_id
             ):
                 await asyncio.sleep(0.005)
-                # ✅ data는 반드시 문자열이어야 하고 \n\n 로 구분해야 함
+                data = result['data']
+                if not isinstance(data, str):
+                    data = json.dumps(data, ensure_ascii=False)
                 yield (
                     f"event: {result['event']}\n"
-                    f"data: {json.dumps(result['data'])}\n\n"
+                    f"data: {data}\n\n"
                 )
         except Exception as e:
-            yield f"event: error\ndata: {json.dumps(str(e))}\n\n"
-
+            yield f"event: error\ndata: {json.dumps(str(e), ensure_ascii=False)}\n\n"
 
     return EventSourceResponse(
         event_generator(),
         headers={
-            # 🚨 이 부분이 핵심입니다
             "Access-Control-Allow-Origin": "https://dbgapp.netlify.app",
             "Cache-Control": "no-cache",
-            "X-Accel-Buffering": "no"  # nginx 같은 프록시에서 버퍼링 방지
+            "X-Accel-Buffering": "no"
         }
     )
