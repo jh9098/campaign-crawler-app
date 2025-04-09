@@ -1,141 +1,177 @@
-# ✅ crawler.py (Streaming 방식 전용)
+import { useState, useEffect, useRef } from "react";
+import { useNavigate } from "react-router-dom";
 
-import requests
-from bs4 import BeautifulSoup
-import re
-import urllib3
-import time
+export default function Result() {
+  const navigate = useNavigate();
+  const [hiddenResults, setHiddenResults] = useState([]);
+  const [publicResults, setPublicResults] = useState([]);
+  const [filter, setFilter] = useState({ hidden: "", public: "" });
+  const [status, setStatus] = useState("⏳ 서버에서 데이터를 받고 있습니다...");
+  const eventSourceRef = useRef(null);
 
-urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+  useEffect(() => {
+    const urlParams = new URLSearchParams(window.location.search);
+    const cookie = urlParams.get("session_cookie");
+    const selected_days = urlParams.get("selected_days");
+    const exclude_keywords = urlParams.get("exclude_keywords");
+    const use_full_range = urlParams.get("use_full_range") === "true";
+    const start_id = urlParams.get("start_id");
+    const end_id = urlParams.get("end_id");
 
-MAIN_URL = "https://dbg.shopreview.co.kr/usr"
-CAMPAIGN_URL_TEMPLATE = "https://dbg.shopreview.co.kr/usr/campaign_detail?csq={}"
+    if (!cookie || !selected_days) {
+      setStatus("❌ 세션 정보 누락. 처음 화면에서 다시 실행해주세요.");
+      return;
+    }
 
+    const query = new URLSearchParams({
+      session_cookie: cookie,
+      selected_days,
+      exclude_keywords,
+      use_full_range,
+    });
 
-def get_public_campaigns(session):
-    public_campaigns = set()
-    for attempt in range(3):
-        try:
-            response = session.get(MAIN_URL, verify=False, timeout=10)
-            response.raise_for_status()
-            scripts = BeautifulSoup(response.text, "html.parser").find_all("script")
-            for script in scripts:
-                matches = re.findall(r'data-csq=["\']?(\d+)', script.text)
-                public_campaigns.update(map(int, matches))
-            if public_campaigns:
-                return public_campaigns
-        except requests.exceptions.RequestException:
-            time.sleep(3)
-    return set()
+    if (!use_full_range && start_id && end_id) {
+      query.append("start_id", start_id);
+      query.append("end_id", end_id);
+    }
 
+    const eventSource = new EventSource(
+      `https://campaign-crawler-app.onrender.com/crawl/stream?${query.toString()}`
+    );
+    eventSourceRef.current = eventSource;
 
-def fetch_campaign_data(campaign_id, session, public_campaigns, selected_days, exclude_keywords):
-    url = CAMPAIGN_URL_TEMPLATE.format(campaign_id)
-    try:
-        response = session.get(url, verify=False, timeout=10)
-        response.raise_for_status()
-        soup = BeautifulSoup(response.text, "html.parser")
+    eventSource.addEventListener("hidden", (e) =>
+      setHiddenResults((prev) => [...prev, e.data])
+    );
+    eventSource.addEventListener("public", (e) =>
+      setPublicResults((prev) => [...prev, e.data])
+    );
+    eventSource.addEventListener("done", () => {
+      setStatus("✅ 데이터 수신 완료");
+      eventSource.close();
+    });
+    eventSource.addEventListener("error", (e) => {
+      console.error("❌ SSE 오류:", e);
+      setStatus("❌ 서버 오류 또는 연결 종료됨.");
+      eventSource.close();
+    });
 
-        if soup.find("script", string="window.location.href = '/usr/login_form';"):
-            return None
+    return () => eventSource.close();
+  }, []);
 
-        participation_time = soup.find("button", class_="butn butn-success", disabled=True)
-        participation_time = participation_time.text.strip() if participation_time else ""
-        if "시에" in participation_time:
-            participation_time = participation_time.replace("시에", "시 00분에")
+  const downloadTxt = (data, filename) => {
+    const sorted = [...data].sort((a, b) => {
+      const timeA = a.split(" & ")[5];
+      const timeB = b.split(" & ")[5];
+      return timeA.localeCompare(timeB);
+    });
+    const blob = new Blob([sorted.join("\n")], { type: "text/plain" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = filename;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
 
-        product_name_tag = soup.find("h3")
-        product_name = product_name_tag.text.strip() if product_name_tag else "상품명 없음"
+  const renderTable = (data, title, isHidden) => {
+    const keyword = isHidden ? filter.hidden : filter.public;
+    const filtered = data.filter((row) => row.includes(keyword));
 
-        print(f"🔍 캠페인 {campaign_id} 참여 시간: {participation_time}")
-        print(f"🔍 상품명: {product_name}")
+    return (
+      <div style={{ marginBottom: 40 }}>
+        <h3>
+          {title} ({filtered.length}건)
+          <button
+            onClick={() =>
+              downloadTxt(
+                filtered,
+                isHidden ? "숨김캠페인.txt" : "공개캠페인.txt"
+              )
+            }
+            style={{
+              marginLeft: 12,
+              padding: "4px 10px",
+              fontSize: 14,
+              display: data.length > 0 ? "inline-block" : "none",
+            }}
+          >
+            📥 다운로드
+          </button>
+        </h3>
 
-        day_match = re.search(r"(\d{2})일", participation_time)
-        if not day_match or day_match.group(0) not in selected_days:
-            return None
+        <input
+          type="text"
+          placeholder="🔎 필터링할 키워드를 입력하세요"
+          value={isHidden ? filter.hidden : filter.public}
+          onChange={(e) =>
+            setFilter((prev) => ({
+              ...prev,
+              [isHidden ? "hidden" : "public"]: e.target.value,
+            }))
+          }
+          style={{ marginBottom: 10, width: 300 }}
+        />
 
-        if soup.find("button", string="종료된 캠페인 입니다") or \
-           soup.find("div", id="alert_msg", string="해당 캠페인은 참여가 불가능한 상태입니다.") or \
-           soup.find("button", string="참여 가능 시간이 아닙니다") or \
-           soup.find("button", string="캠페인 참여"):
-            return None
+        <table
+          border="1"
+          cellPadding="6"
+          style={{ borderCollapse: "collapse", width: "100%" }}
+        >
+          <thead>
+            <tr>
+              <th>No</th>
+              <th>구분</th>
+              <th>리뷰</th>
+              <th>쇼핑몰</th>
+              <th>가격</th>
+              <th>포인트</th>
+              <th>시간</th>
+              <th>상품명</th>
+              <th>링크</th>
+              <th>번호</th>
+            </tr>
+          </thead>
+          <tbody>
+            {filtered.map((row, idx) => {
+              const [type, review, mall, price, point, time, name, url] =
+                row.split(" & ");
+              const match = url.match(/csq=(\d+)/);
+              const csq = match ? match[1] : "-";
+              return (
+                <tr key={idx}>
+                  <td>{idx + 1}</td>
+                  <td>{type}</td>
+                  <td>{review}</td>
+                  <td>{mall}</td>
+                  <td>{price}</td>
+                  <td>{point}</td>
+                  <td>{time}</td>
+                  <td>{name}</td>
+                  <td>
+                    <a href={url} target="_blank" rel="noreferrer">
+                      바로가기
+                    </a>
+                  </td>
+                  <td>{csq}</td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+    );
+  };
 
-        if any(keyword in product_name for keyword in exclude_keywords):
-            return None
-
-        price = "가격 정보 없음"
-        price_tag = soup.find(string=re.compile("총 결제금액"))
-        if price_tag:
-            price_text = price_tag.find_next("div", style="text-align:right")
-            if price_text:
-                price_value = re.sub(r"[^\d]", "", price_text.text)
-                price = price_value if price_value else price
-
-        tobagi_points = "0 P"
-        point_tag = soup.find(string=re.compile("또바기 포인트"))
-        if point_tag:
-            pt = point_tag.find_next("div", style="text-align:right")
-            if pt:
-                tobagi_points = pt.text.strip()
-
-        product_type = "상품구분 없음"
-        for section in soup.find_all("div", class_="row col-sm4 col-12"):
-            title = section.find("div", class_="col-6")
-            value = section.find("div", style="text-align:right")
-            if title and value and "배송" in title.text:
-                product_type = value.text.strip()
-                break
-
-        shop_name = "쇼핑몰 정보 없음"
-        shop_section = soup.find("div", class_="col-sm-9")
-        if shop_section:
-            shop_img = shop_section.find("img")
-            if shop_img and "alt" in shop_img.attrs:
-                shop_name = shop_img["alt"].strip()
-
-        text_review = "포토 리뷰"
-        if soup.find("label", string="텍스트 리뷰"):
-            text_review = "텍스트 리뷰"
-
-        if price != "가격 정보 없음":
-            price_num = int(price)
-            if "기타배송" in product_type and "스마트스토어" in shop_name and price_num < 90000:
-                return None
-            if "기타배송" in product_type and "쿠팡" in shop_name and price_num < 28500:
-                return None
-            if "실배송" in product_type and price_num < 8500:
-                return None
-
-        result = f"{product_type} & {text_review} & {shop_name} & {price} & {tobagi_points} & {participation_time} & {product_name} & {url}"
-        return (None, result) if campaign_id in public_campaigns else (result, None)
-
-    except requests.exceptions.RequestException:
-        return None
-
-
-def run_crawler_streaming(session_cookie, selected_days, exclude_keywords, use_full_range=True, start_id=None, end_id=None):
-    session = requests.Session()
-    session.cookies.set("PHPSESSID", session_cookie)
-
-    public_campaigns = get_public_campaigns(session)
-    if not public_campaigns:
-        yield {"event": "error", "data": "공개 캠페인 정보를 가져오지 못했습니다."}
-        return
-
-    if use_full_range:
-        start_id = min(public_campaigns)
-        end_id = max(public_campaigns)
-    elif start_id is None or end_id is None:
-        yield {"event": "error", "data": "수동 범위 사용 시 start_id, end_id는 필수입니다."}
-        return
-
-    for cid in range(start_id, end_id + 1):
-        result = fetch_campaign_data(cid, session, public_campaigns, selected_days, exclude_keywords)
-        if result:
-            h, p = result
-            if h:
-                yield {"event": "hidden", "data": h}
-            if p:
-                yield {"event": "public", "data": p}
-
-    yield {"event": "done", "data": "크롤링 완료"}
+  return (
+    <div style={{ padding: 20 }}>
+      <h2>📡 실시간 크롤링 결과</h2>
+      <p style={{ color: "green" }}>{status}</p>
+      <button onClick={() => navigate("/")}>🔙 처음으로</button>
+      <br />
+      <br />
+      {renderTable(hiddenResults, "🔒 숨겨진 캠페인", true)}
+      {renderTable(publicResults, "🌐 공개 캠페인", false)}
+    </div>
+  );
+}
