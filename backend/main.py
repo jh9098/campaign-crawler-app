@@ -1,21 +1,22 @@
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
-from pydantic import BaseModel
+from sse_starlette.sse import EventSourceResponse
 from crawler import run_crawler_streaming
 import asyncio
-from sse_starlette.sse import EventSourceResponse
 
 app = FastAPI()
 
+# 일반 CORS 설정
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # <-- 여기가 일반 요청은 커버하지만 SSE엔 직접 헤더 추가해야 함
+    allow_origins=["*"],  # <- 반드시 * 또는 frontend origin 명시
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
+# OPTIONS 프리플라이트 핸들링
 @app.options("/crawl/stream")
 async def options_handler(request: Request):
     return JSONResponse(content={}, status_code=200)
@@ -43,20 +44,16 @@ async def crawl_stream(
                 end_id=end_id
             ):
                 await asyncio.sleep(0.005)
-                if result["event"] == "hidden":
-                    yield f"event: hidden\ndata: {result['data']}\n\n"
-                elif result["event"] == "public":
-                    yield f"event: public\ndata: {result['data']}\n\n"
-                elif result["event"] == "done":
-                    yield f"event: done\ndata: {result['data']}\n\n"
-                elif result["event"] == "error":
-                    yield f"event: error\ndata: {result['data']}\n\n"
-                    return
+                yield f"event: {result['event']}\ndata: {result['data']}\n\n"
         except Exception as e:
             yield f"event: error\ndata: {str(e)}\n\n"
 
-    # ✅ 핵심: CORS 헤더 수동 추가
+    # 👇 여기서 반드시 CORS 허용 헤더를 직접 명시해야 함
     return EventSourceResponse(
         event_generator(),
-        headers={"Access-Control-Allow-Origin": "*"}
+        headers={
+            "Access-Control-Allow-Origin": "*",  # 또는 "https://dbgapp.netlify.app"
+            "Cache-Control": "no-cache",
+            "X-Accel-Buffering": "no"  # 일부 리버스 프록시에서 SSE 버퍼링 방지
+        }
     )
