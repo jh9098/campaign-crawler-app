@@ -10,60 +10,54 @@ export default function Result() {
   const eventSourceRef = useRef(null);
 
   useEffect(() => {
-  const urlParams = new URLSearchParams(window.location.search);
-  const cookie = urlParams.get("session_cookie");
-  const selected_days = urlParams.get("selected_days");
-  const exclude_keywords = urlParams.get("exclude_keywords") || "";
-  const use_full_range = urlParams.get("use_full_range") === "true";
-  const start_id = urlParams.get("start_id");
-  const end_id = urlParams.get("end_id");
+    const urlParams = new URLSearchParams(window.location.search);
+    const cookie = urlParams.get("session_cookie");
+    const selected_days = urlParams.get("selected_days");
+    const exclude_keywords = urlParams.get("exclude_keywords") || "";
+    const use_full_range = urlParams.get("use_full_range") === "true";
+    const start_id = urlParams.get("start_id");
+    const end_id = urlParams.get("end_id");
 
-  if (!cookie || !selected_days) {
-    setStatus("❌ 세션 정보 누락. 처음 화면에서 다시 실행해주세요.");
-    return;
-  }
+    if (!cookie || !selected_days) {
+      setStatus("❌ 세션 정보 누락. 처음 화면에서 다시 실행해주세요.");
+      return;
+    }
 
-  const query = new URLSearchParams({
-    session_cookie: cookie,
-    selected_days,
-    exclude_keywords,
-    use_full_range,
-  });
+    const query = new URLSearchParams({
+      session_cookie: cookie,
+      selected_days,
+      exclude_keywords,
+      use_full_range,
+    });
 
-  if (!use_full_range && start_id && end_id) {
-    query.append("start_id", start_id);
-    query.append("end_id", end_id);
-  }
+    if (!use_full_range && start_id && end_id) {
+      query.append("start_id", start_id);
+      query.append("end_id", end_id);
+    }
 
-  const eventSource = new EventSource(
-    `https://campaign-crawler-app.onrender.com/crawl/stream?${query.toString()}`
-  );
-  eventSourceRef.current = eventSource;
+    const eventSource = new EventSource(
+      `https://campaign-crawler-app.onrender.com/crawl/stream?${query.toString()}`
+    );
+    eventSourceRef.current = eventSource;
 
-  eventSource.addEventListener("hidden", (e) => {
-    if (e?.data) setHiddenResults((prev) => [...prev, e.data]);
-  });
+    eventSource.addEventListener("hidden", (e) => {
+      if (e?.data) setHiddenResults((prev) => [...prev, e.data]);
+    });
 
-  eventSource.addEventListener("public", (e) => {
-    if (e?.data) setPublicResults((prev) => [...prev, e.data]);
-  });
+    eventSource.addEventListener("public", (e) => {
+      if (e?.data) setPublicResults((prev) => [...prev, e.data]);
+    });
 
-  eventSource.addEventListener("done", () => {
-    setStatus("✅ 데이터 수신 완료");
-    eventSource.close();
-  });
+    eventSource.addEventListener("done", () => {
+      setStatus("✅ 데이터 수신 완료");
+      eventSource.close();
+    });
 
-  eventSource.addEventListener("error", (e) => {
-    console.error("❌ SSE 오류 발생:", e);
-    setStatus("❌ 서버 연결이 끊어졌습니다. 페이지를 새로고침하거나 처음부터 다시 시도해주세요.");
-    eventSource.close();
-  });
-
-  return () => {
-    eventSource.close();
-  };
-}, []);
-
+    eventSource.addEventListener("error", (e) => {
+      console.error("❌ SSE 오류 발생:", e);
+      setStatus("❌ 서버 연결이 끊어졌습니다. 페이지를 새로고침하거나 처음부터 다시 시도해주세요.");
+      eventSource.close();
+    });
 
     return () => eventSource.close();
   }, []);
