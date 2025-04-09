@@ -41,11 +41,21 @@ export default function Result() {
     eventSourceRef.current = eventSource;
 
     eventSource.addEventListener("hidden", (e) => {
-      if (e?.data) setHiddenResults((prev) => [...prev, JSON.parse(e.data)]);
+      try {
+        const parsed = JSON.parse(e.data);
+        setHiddenResults((prev) => [...prev, parsed]);
+      } catch (err) {
+        console.error("파싱 실패(hidden):", e.data, err);
+      }
     });
-
+    
     eventSource.addEventListener("public", (e) => {
-      if (e?.data) setPublicResults((prev) => [...prev, JSON.parse(e.data)]);
+      try {
+        const parsed = JSON.parse(e.data);
+        setPublicResults((prev) => [...prev, parsed]);
+      } catch (err) {
+        console.error("파싱 실패(public):", e.data, err);
+      }
     });
 
     eventSource.addEventListener("done", () => {
