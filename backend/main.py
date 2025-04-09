@@ -19,8 +19,7 @@ app.add_middleware(
 @app.options("/crawl/stream")
 async def options_handler(request: Request):
     return JSONResponse(
-        content={},
-        status_code=200,
+        content={}, status_code=200,
         headers={
             "Access-Control-Allow-Origin": "https://dbgapp.netlify.app",
             "Access-Control-Allow-Methods": "GET, OPTIONS",
@@ -43,10 +42,6 @@ async def crawl_stream(
 
     async def event_generator():
         try:
-            # ✅ 연결 유지용 ping
-            yield f"event: ping\ndata: 연결유지\n\n"
-            await asyncio.sleep(0.1)
-
             for result in run_crawler_streaming(
                 session_cookie=session_cookie,
                 selected_days=selected_days_list,
@@ -56,19 +51,17 @@ async def crawl_stream(
                 end_id=end_id
             ):
                 await asyncio.sleep(0.005)
-                yield (
-                    f"event: {result['event']}\n"
-                    f"data: {json.dumps(result['data'], ensure_ascii=False)}\n\n"
-                )
+                # 문자열로 직렬화
+                yield f"event: {result['event']}\ndata: {json.dumps(result['data'])}\n\n"
         except Exception as e:
-            yield f"event: error\ndata: {json.dumps(str(e), ensure_ascii=False)}\n\n"
+            yield f"event: error\ndata: {json.dumps(str(e))}\n\n"
 
     return EventSourceResponse(
         event_generator(),
         headers={
             "Access-Control-Allow-Origin": "https://dbgapp.netlify.app",
             "Cache-Control": "no-cache",
-            "X-Accel-Buffering": "no",
-            "Content-Type": "text/event-stream; charset=utf-8",
-        }
+            "X-Accel-Buffering": "no",  # proxy 버퍼 방지
+        },
+        media_type="text/event-stream",  # 👉 SSE 명시적으로 지정
     )
