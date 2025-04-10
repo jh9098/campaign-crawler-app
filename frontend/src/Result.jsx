@@ -1,4 +1,4 @@
-// ✅ result.jsx (자동 다운로드 + Clear 버튼 포함)
+// ✅ result.jsx (진행률 표시 포함)
 
 import { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
@@ -13,6 +13,8 @@ export default function Result() {
   const fetchedCsq = useRef(new Set());
   const socketRef = useRef(null);
   const reconnectTimeout = useRef(null);
+  const [progress, setProgress] = useState(null);
+  const [range, setRange] = useState({ start: null, end: null });
 
   const getCsq = (row) => {
     const match = row.match(/csq=(\d+)/);
@@ -65,6 +67,7 @@ export default function Result() {
     setHiddenResults([]);
     setPublicResults([]);
     fetchedCsq.current = new Set();
+    setProgress(null);
   };
 
   useEffect(() => {
@@ -87,6 +90,7 @@ export default function Result() {
     if (!use_full_range && start_id && end_id) {
       payload.start_id = parseInt(start_id);
       payload.end_id = parseInt(end_id);
+      setRange({ start: parseInt(start_id), end: parseInt(end_id) });
     }
 
     const connectWebSocket = () => {
@@ -102,6 +106,7 @@ export default function Result() {
       socket.onmessage = (event) => {
         const message = JSON.parse(event.data);
         const { event: type, data } = message;
+
         if (type === "hidden") {
           setHiddenResults((prev) => insertUniqueSorted(prev, data));
         } else if (type === "public") {
@@ -109,12 +114,18 @@ export default function Result() {
         } else if (type === "done") {
           setStatus("✅ 데이터 수신 완료");
           socket.close();
-          // ✅ 자동 다운로드
           if (hiddenResults.length > 0) downloadTxt(hiddenResults, "숨김캠페인.txt");
           if (publicResults.length > 0) downloadTxt(publicResults, "공개캠페인.txt");
         } else if (type === "error") {
           setStatus("❌ 에러 발생: " + data);
           socket.close();
+        }
+
+        // ✅ 진행률 업데이트 (캠페인 번호 포함된 경우)
+        const csq = getCsq(data);
+        if (csq && range.start && range.end) {
+          const percent = Math.floor(((parseInt(csq) - range.start) / (range.end - range.start)) * 100);
+          setProgress(percent);
         }
       };
 
@@ -215,7 +226,7 @@ export default function Result() {
   return (
     <div style={{ padding: 20 }}>
       <h2>📡 실시간 크롤링 결과</h2>
-      <p style={{ color: "green" }}>{status}</p>
+      <p style={{ color: "green" }}>{status} {progress !== null && `(${progress}%)`}</p>
       <button onClick={() => navigate("/")}>🔙 처음으로</button>
       <button onClick={clearResults} style={{ marginLeft: 10, color: "red" }}>🗑 Clear</button>
       <br /><br />
