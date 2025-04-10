@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 
 export default function App() {
   const [cookie, setCookie] = useState("");
@@ -9,6 +10,7 @@ export default function App() {
   const [startId, setStartId] = useState(40000);
   const [endId, setEndId] = useState(40100);
 
+  const navigate = useNavigate();
   const days = Array.from({ length: 31 }, (_, i) => `${String(i + 1).padStart(2, "0")}일`);
 
   useEffect(() => {
@@ -30,8 +32,6 @@ export default function App() {
   };
 
   const handleSubmit = () => {
-    console.log("✅ handleSubmit 호출됨");
-
     const manualStartId = Number(document.querySelector("#startId")?.value || "0");
     const manualEndId = Number(document.querySelector("#endId")?.value || "0");
 
@@ -66,7 +66,6 @@ export default function App() {
       selected_days: selectedDays.join(","),
       exclude_keywords: exclude,
       use_full_range: useFullRange.toString(),
-      debug: Date.now().toString(), // ✅ 디버깅용 랜덤 파라미터
     });
 
     if (!useFullRange) {
@@ -74,11 +73,8 @@ export default function App() {
       query.append("end_id", manualEndId.toString());
     }
 
-    const fullUrl = `/result?${query.toString()}`;
-    console.log("➡️ 이동 중:", fullUrl);
-
-    // ✅ 완전 새로고침 방식
-    window.location.href = fullUrl;
+    // 페이지 완전 새로고침
+    window.location.href = `/result?${query.toString()}`;
   };
 
   return (
@@ -172,6 +168,14 @@ export default function App() {
 
       <button onClick={handleSubmit} disabled={loading}>
         {loading ? "⏳ 실행 중..." : "✅ 실시간 실행"}
+      </button>
+
+      {/* ✅ 업로드 결과 보기 버튼 복원 */}
+      <button
+        style={{ marginLeft: 10 }}
+        onClick={() => window.location.href = "/result"}
+      >
+        📄 업로드 결과 보기
       </button>
     </div>
   );
