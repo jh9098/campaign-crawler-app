@@ -104,7 +104,7 @@ def fetch_campaign_data(campaign_id, session, public_campaigns, selected_days, e
 
         result = f"{product_type} & {text_review} & {shop_name} & {price} & {tobagi_points} & {participation_time} & {product_name} & {url}"
         return (None, result) if campaign_id in public_campaigns else (result, None)
-        print(result)
+        #print(f"결과 {result}")
     except requests.exceptions.RequestException:
         return None
 
