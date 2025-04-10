@@ -72,23 +72,28 @@ export default function Result() {
         })
       );
     };
-
     socket.onmessage = (event) => {
       const message = JSON.parse(event.data);
       const { event: type, data } = message;
-
+    
       if (type === "init") {
-        setTotalCount(data.total); // ✅ 전체 캠페인 수 저장
+        setTotalCount(data.total);
         setStatus("⏳ 데이터를 수신 중입니다... 0%");
       } else if (type === "progress") {
-        setDoneCount((prev) => prev + 1); // ✅ 확인된 캠페인 1개 처리
+        setDoneCount((prev) => prev + 1);
+      } else if (type === "hidden") {
+        setHiddenResults((prev) => insertUniqueSorted(prev, data));
+      } else if (type === "public") {
+        setPublicResults((prev) => insertUniqueSorted(prev, data));
+      } else if (type === "done") {
+        setStatus("✅ 데이터 수신 완료");
+        socket.close();
       } else if (type === "error") {
         console.error("❌ 오류:", data);
         setStatus("❌ 에러 발생: " + data);
         socket.close();
       }
     };
-
     socket.onerror = (e) => {
       console.error("❌ WebSocket 오류", e);
       setStatus("❌ 서버 연결 오류");
