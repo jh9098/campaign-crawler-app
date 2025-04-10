@@ -6,10 +6,10 @@ import asyncio
 
 app = FastAPI()
 
-# CORS 설정
+# ✅ CORS 설정
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["https://dbgapp.netlify.app"],  # 실제 사용중인 도메인
+    allow_origins=["https://dbgapp.netlify.app"],  # 실제 배포된 프론트 주소
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -19,7 +19,7 @@ app.add_middleware(
 async def websocket_endpoint(websocket: WebSocket):
     await websocket.accept()
     try:
-        # 프론트에서 초기 파라미터를 JSON으로 보냄
+        # ✅ 클라이언트에서 보낸 파라미터 수신
         params = await websocket.receive_text()
         data = json.loads(params)
 
@@ -35,7 +35,8 @@ async def websocket_endpoint(websocket: WebSocket):
         if isinstance(exclude_keywords, str):
             exclude_keywords = [k.strip() for k in exclude_keywords.split(",") if k.strip()]
 
-        async def send_result():
+        # ✅ 크롤링 결과 전송 task
+        async def send_results():
             for result in run_crawler_streaming(
                 session_cookie=session_cookie,
                 selected_days=selected_days,
@@ -44,13 +45,22 @@ async def websocket_endpoint(websocket: WebSocket):
                 start_id=start_id,
                 end_id=end_id
             ):
-                await asyncio.sleep(0.001)
                 await websocket.send_text(json.dumps(result))
             await websocket.send_text(json.dumps({"event": "done", "data": "크롤링 완료"}))
 
-        await send_result()
+        # ✅ 5초마다 ping 메시지 전송 task
+        async def send_heartbeat():
+            while True:
+                await asyncio.sleep(5)
+                await websocket.send_text(json.dumps({"event": "ping", "data": "💓"}))
+
+        # ✅ 둘 다 동시에 실행
+        await asyncio.gather(
+            send_results(),
+            send_heartbeat()
+        )
 
     except WebSocketDisconnect:
         print("❌ 클라이언트 연결 끊김")
     except Exception as e:
-        await websocket.send_text(json.dumps({"event": "error", "data": str(e)}))
+        await websocket.send_text(json.dumps({"event": "error", "data": f"서버 오류: {str(e)}"}))
