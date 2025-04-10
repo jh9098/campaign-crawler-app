@@ -2,6 +2,7 @@ import requests
 from bs4 import BeautifulSoup
 import re
 import urllib3
+import asyncio
 import time
 
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
@@ -108,8 +109,8 @@ def fetch_campaign_data(campaign_id, session, public_campaigns, selected_days, e
     except requests.exceptions.RequestException:
         return None
 
-def run_crawler_streaming(session_cookie, selected_days, exclude_keywords,
-                          use_full_range=True, start_id=None, end_id=None, exclude_ids=None):
+async def run_crawler_streaming(session_cookie, selected_days, exclude_keywords,
+                                use_full_range=True, start_id=None, end_id=None, exclude_ids=None):
     session = requests.Session()
     session.cookies.set("PHPSESSID", session_cookie)
 
@@ -121,7 +122,6 @@ def run_crawler_streaming(session_cookie, selected_days, exclude_keywords,
         yield {"event": "error", "data": "공개 캠페인 정보를 가져오지 못했습니다."}
         return
 
-    # ✅ 범위 결정 로직 확실히 구분
     if use_full_range:
         start_id = min(public_campaigns)
         end_id = max(public_campaigns)
@@ -131,11 +131,15 @@ def run_crawler_streaming(session_cookie, selected_days, exclude_keywords,
             return
 
     print(f"📡 실행할 캠페인 범위: {start_id} ~ {end_id}")
-    
+
     for cid in range(start_id, end_id + 1):
         if cid in exclude_ids:
             continue
-        result = fetch_campaign_data(cid, session, public_campaigns, selected_days, exclude_keywords)
+
+        result = await asyncio.to_thread(
+            fetch_campaign_data,
+            cid, session, public_campaigns, selected_days, exclude_keywords
+        )
         if result:
             h, p = result
             if h:
@@ -144,3 +148,4 @@ def run_crawler_streaming(session_cookie, selected_days, exclude_keywords,
                 yield {"event": "public", "data": p}
 
     yield {"event": "done", "data": "크롤링 완료"}
+
