@@ -1,14 +1,13 @@
 import { useState, useEffect, useRef } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 
 export default function Result() {
   const navigate = useNavigate();
+  const location = useLocation();
   const [hiddenResults, setHiddenResults] = useState([]);
   const [publicResults, setPublicResults] = useState([]);
   const [filter, setFilter] = useState({ hidden: "", public: "" });
   const [status, setStatus] = useState("⏳ 데이터를 수신 중입니다...");
-  const [totalCount, setTotalCount] = useState(0);
-  const [doneCount, setDoneCount] = useState(0);
   const socketRef = useRef(null);
   const fetchedCsq = useRef(new Set());
 
@@ -50,7 +49,7 @@ export default function Result() {
   }, [publicResults]);
 
   useEffect(() => {
-    const urlParams = new URLSearchParams(window.location.search);
+    const urlParams = new URLSearchParams(location.search);
     const session_cookie = urlParams.get("session_cookie");
     const selected_days = urlParams.get("selected_days");
     const exclude_keywords = urlParams.get("exclude_keywords") || "";
@@ -84,6 +83,10 @@ export default function Result() {
       }
       payload.start_id = start_id;
       payload.end_id = end_id;
+    }
+
+    if (socketRef.current) {
+      socketRef.current.close();
     }
 
     const socket = new WebSocket("wss://campaign-crawler-app.onrender.com/ws/crawl");
@@ -121,14 +124,7 @@ export default function Result() {
     };
 
     return () => socket.close();
-  }, []);
-
-  useEffect(() => {
-    if (totalCount > 0 && doneCount < totalCount) {
-      const percent = Math.floor((doneCount / totalCount) * 100);
-      setStatus(`⏳ 데이터를 수신 중입니다... ${percent}%`);
-    }
-  }, [doneCount, totalCount]);
+  }, [location.search]);
 
   const downloadTxt = (data, filename) => {
     const blob = new Blob([data.join("\n")], { type: "text/plain" });
@@ -244,8 +240,7 @@ export default function Result() {
       <h2>📡 실시간 크롤링 결과</h2>
       <p style={{ color: "green" }}>{status}</p>
       <button onClick={() => navigate("/")}>🔙 처음으로</button>
-      <br />
-      <br />
+      <br /><br />
       {renderTable(hiddenResults, "🔒 숨겨진 캠페인", true)}
       {renderTable(publicResults, "🌐 공개 캠페인", false)}
     </div>
