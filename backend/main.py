@@ -76,6 +76,7 @@ async def websocket_endpoint(websocket: WebSocket):
         async def send_heartbeat():
             while True:
                 await asyncio.sleep(5)
+                print("💓 핑")
                 await websocket.send_text(json.dumps({"event": "ping", "data": "💓"}))
 
         # ✅ 동시 실행
