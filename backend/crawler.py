@@ -43,8 +43,8 @@ def fetch_campaign_data(campaign_id, session, public_campaigns, selected_days, e
         product_name_tag = soup.find("h3")
         product_name = product_name_tag.text.strip().replace("&", "") if product_name_tag else "상품명 없음"
 
-        print(f"🔍 캠페인 {campaign_id} 참여 시간: {participation_time}")
-        print(f"🔍 상품명: {product_name}")
+        #print(f"🔍 캠페인 {campaign_id} 참여 시간: {participation_time}")
+        #print(f"🔍 상품명: {product_name}")
 
         day_match = re.search(r"(\d{2})일", participation_time)
         if not day_match or day_match.group(0) not in selected_days:
