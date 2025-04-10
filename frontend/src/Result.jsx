@@ -1,4 +1,4 @@
-// ✅ result.jsx (자동 WebSocket 재접속 + 중복 캠페인 skip 유지)
+// ✅ result.jsx (자동 다운로드 + Clear 버튼 포함)
 
 import { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
@@ -49,6 +49,24 @@ export default function Result() {
     localStorage.setItem("publicResults", JSON.stringify(publicResults));
   }, [publicResults]);
 
+  const downloadTxt = (data, filename) => {
+    const blob = new Blob([data.join("\n")], { type: "text/plain" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = filename;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const clearResults = () => {
+    localStorage.removeItem("hiddenResults");
+    localStorage.removeItem("publicResults");
+    setHiddenResults([]);
+    setPublicResults([]);
+    fetchedCsq.current = new Set();
+  };
+
   useEffect(() => {
     const urlParams = new URLSearchParams(window.location.search);
     const session_cookie = urlParams.get("session_cookie");
@@ -91,6 +109,9 @@ export default function Result() {
         } else if (type === "done") {
           setStatus("✅ 데이터 수신 완료");
           socket.close();
+          // ✅ 자동 다운로드
+          if (hiddenResults.length > 0) downloadTxt(hiddenResults, "숨김캠페인.txt");
+          if (publicResults.length > 0) downloadTxt(publicResults, "공개캠페인.txt");
         } else if (type === "error") {
           setStatus("❌ 에러 발생: " + data);
           socket.close();
@@ -120,16 +141,6 @@ export default function Result() {
       if (reconnectTimeout.current) clearTimeout(reconnectTimeout.current);
     };
   }, []);
-
-  const downloadTxt = (data, filename) => {
-    const blob = new Blob([data.join("\n")], { type: "text/plain" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = filename;
-    a.click();
-    URL.revokeObjectURL(url);
-  };
 
   const renderTable = (data, title, isHidden) => {
     const keyword = isHidden ? filter.hidden : filter.public;
@@ -206,6 +217,7 @@ export default function Result() {
       <h2>📡 실시간 크롤링 결과</h2>
       <p style={{ color: "green" }}>{status}</p>
       <button onClick={() => navigate("/")}>🔙 처음으로</button>
+      <button onClick={clearResults} style={{ marginLeft: 10, color: "red" }}>🗑 Clear</button>
       <br /><br />
       {renderTable(hiddenResults, "🔒 숨겨진 캠페인", true)}
       {renderTable(publicResults, "🌐 공개 캠페인", false)}
