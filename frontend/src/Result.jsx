@@ -80,15 +80,8 @@ export default function Result() {
       if (type === "init") {
         setTotalCount(data.total); // ✅ 전체 캠페인 수 저장
         setStatus("⏳ 데이터를 수신 중입니다... 0%");
-      } else if (type === "hidden") {
-        setHiddenResults((prev) => insertUniqueSorted(prev, data));
-        setDoneCount((prev) => prev + 1); // ✅ 완료 수 증가
-      } else if (type === "public") {
-        setPublicResults((prev) => insertUniqueSorted(prev, data));
-        setDoneCount((prev) => prev + 1); // ✅ 완료 수 증가
-      } else if (type === "done") {
-        setStatus("✅ 데이터 수신 완료");
-        socket.close();
+      } else if (type === "progress") {
+        setDoneCount((prev) => prev + 1); // ✅ 확인된 캠페인 1개 처리
       } else if (type === "error") {
         console.error("❌ 오류:", data);
         setStatus("❌ 에러 발생: " + data);
