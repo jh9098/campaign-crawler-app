@@ -23,13 +23,17 @@ export default function App() {
       localStorage.getItem("last_use_full_range") === "true";
     const savedStartId = localStorage.getItem("last_start_id");
     const savedEndId = localStorage.getItem("last_end_id");
-
+  
     if (savedCookie) setCookie(savedCookie);
     if (savedDays.length > 0) setSelectedDays(savedDays);
     if (savedExclude) setExclude(savedExclude);
-    if (savedStartId) setStartId(Number(savedStartId));
-    if (savedEndId) setEndId(Number(savedEndId));
     setUseFullRange(savedUseFullRange);
+  
+    // ✅ 수동 범위는 result 페이지 진입 시에만 적용
+    if (window.location.pathname === "/result") {
+      if (savedStartId) setStartId(Number(savedStartId));
+      if (savedEndId) setEndId(Number(savedEndId));
+    }
   }, []);
 
   const toggleDay = (day) => {
