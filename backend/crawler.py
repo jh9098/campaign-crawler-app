@@ -52,7 +52,7 @@ def fetch_campaign_data(campaign_id, session, public_campaigns, selected_days, e
            soup.find("button", string="참여 가능 시간이 아닙니다") or \
            soup.find("button", string="캠페인 참여"):
             return None
-
+        print("상품명 : " & product_name & "참여가능 시간 : " & participation_time)
         if any(keyword in product_name for keyword in exclude_keywords):
             return None
 
@@ -101,7 +101,7 @@ def fetch_campaign_data(campaign_id, session, public_campaigns, selected_days, e
 
         result = f"{product_type} & {text_review} & {shop_name} & {price} & {tobagi_points} & {participation_time} & {product_name} & {url}"
         return (None, result) if campaign_id in public_campaigns else (result, None)
-
+        print(result)
     except requests.exceptions.RequestException:
         return None
 
