@@ -9,7 +9,6 @@ urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 MAIN_URL = "https://dbg.shopreview.co.kr/usr"
 CAMPAIGN_URL_TEMPLATE = "https://dbg.shopreview.co.kr/usr/campaign_detail?csq={}"
 
-
 def get_public_campaigns(session):
     public_campaigns = set()
     for attempt in range(3):
@@ -25,7 +24,6 @@ def get_public_campaigns(session):
         except requests.exceptions.RequestException:
             time.sleep(3)
     return set()
-
 
 def fetch_campaign_data(campaign_id, session, public_campaigns, selected_days, exclude_keywords):
     url = CAMPAIGN_URL_TEMPLATE.format(campaign_id)
@@ -110,10 +108,12 @@ def fetch_campaign_data(campaign_id, session, public_campaigns, selected_days, e
     except requests.exceptions.RequestException:
         return None
 
-
-def run_crawler_streaming(session_cookie, selected_days, exclude_keywords, use_full_range=True, start_id=None, end_id=None):
+def run_crawler_streaming(session_cookie, selected_days, exclude_keywords, use_full_range=True, start_id=None, end_id=None, exclude_ids=None):
     session = requests.Session()
     session.cookies.set("PHPSESSID", session_cookie)
+
+    if exclude_ids is None:
+        exclude_ids = set()
 
     public_campaigns = get_public_campaigns(session)
     if not public_campaigns:
@@ -128,6 +128,8 @@ def run_crawler_streaming(session_cookie, selected_days, exclude_keywords, use_f
         return
 
     for cid in range(start_id, end_id + 1):
+        if cid in exclude_ids:
+            continue
         result = fetch_campaign_data(cid, session, public_campaigns, selected_days, exclude_keywords)
         if result:
             h, p = result
