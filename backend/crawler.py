@@ -108,7 +108,8 @@ def fetch_campaign_data(campaign_id, session, public_campaigns, selected_days, e
     except requests.exceptions.RequestException:
         return None
 
-def run_crawler_streaming(session_cookie, selected_days, exclude_keywords, use_full_range=True, start_id=None, end_id=None, exclude_ids=None):
+def run_crawler_streaming(session_cookie, selected_days, exclude_keywords,
+                          use_full_range=True, start_id=None, end_id=None, exclude_ids=None):
     session = requests.Session()
     session.cookies.set("PHPSESSID", session_cookie)
 
@@ -120,13 +121,17 @@ def run_crawler_streaming(session_cookie, selected_days, exclude_keywords, use_f
         yield {"event": "error", "data": "공개 캠페인 정보를 가져오지 못했습니다."}
         return
 
+    # ✅ 범위 결정 로직 확실히 구분
     if use_full_range:
         start_id = min(public_campaigns)
         end_id = max(public_campaigns)
-    elif start_id is None or end_id is None:
-        yield {"event": "error", "data": "수동 범위 사용 시 start_id, end_id는 필수입니다."}
-        return
+    else:
+        if start_id is None or end_id is None:
+            yield {"event": "error", "data": "수동 범위 사용 시 start_id, end_id는 필수입니다."}
+            return
 
+    print(f"📡 실행할 캠페인 범위: {start_id} ~ {end_id}")
+    
     for cid in range(start_id, end_id + 1):
         if cid in exclude_ids:
             continue
