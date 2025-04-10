@@ -29,6 +29,13 @@ async def websocket_endpoint(websocket: WebSocket):
         start_id = data.get("start_id")
         end_id = data.get("end_id")
         exclude_ids = set(map(int, data.get("exclude_ids", [])))
+        print("[WebSocket 요청 파라미터 수신 완료]")
+        print(f" > session_cookie: {session_cookie}")
+        print(f" > selected_days: {selected_days}")
+        print(f" > exclude_keywords: {exclude_keywords}")
+        print(f" > start_id: {start_id}, end_id: {end_id}")
+        print(f" > exclude_ids: {exclude_ids}")
+
 
         if isinstance(selected_days, str):
             selected_days = [s.strip() for s in selected_days.split(",") if s.strip()]
