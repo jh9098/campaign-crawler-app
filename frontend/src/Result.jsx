@@ -1,5 +1,6 @@
 // result.jsx
-// ✅ 중복 제거 재연결 + 자동 재시도 + WebSocket 기반 + ping/pong 응답
+// ✅ 중복 제거 재연결 + 자동 재시도 + WebSocket 기반 + ping/pong 응답 + Clear 버튼 추가
+
 import { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 
@@ -198,7 +199,21 @@ export default function Result() {
     <div style={{ padding: 20 }}>
       <h2>📡 실시간 크롤링 결과</h2>
       <p style={{ color: "green" }}>{status}</p>
+
       <button onClick={() => navigate("/")}>🔙 처음으로</button>
+      <button
+        onClick={() => {
+          setHiddenResults([]);
+          setPublicResults([]);
+          setFetchedCsq(new Set());
+          localStorage.removeItem("hiddenResults");
+          localStorage.removeItem("publicResults");
+        }}
+        style={{ marginLeft: 10, backgroundColor: "#888", color: "white", border: "none", padding: "6px 12px" }}
+      >
+        🗑 Clear
+      </button>
+
       <br /><br />
       {renderTable(hiddenResults, "🔒 숨겨진 캠페인", true)}
       {renderTable(publicResults, "🌐 공개 캠페인", false)}
