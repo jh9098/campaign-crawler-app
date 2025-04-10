@@ -30,6 +30,8 @@ export default function App() {
   };
 
   const handleSubmit = () => {
+    console.log("✅ handleSubmit 호출됨");
+
     const manualStartId = Number(document.querySelector("#startId")?.value || "0");
     const manualEndId = Number(document.querySelector("#endId")?.value || "0");
 
@@ -64,6 +66,7 @@ export default function App() {
       selected_days: selectedDays.join(","),
       exclude_keywords: exclude,
       use_full_range: useFullRange.toString(),
+      debug: Date.now().toString(), // ✅ 디버깅용 랜덤 파라미터
     });
 
     if (!useFullRange) {
@@ -71,8 +74,11 @@ export default function App() {
       query.append("end_id", manualEndId.toString());
     }
 
-    // ✅ 완전한 새로고침 방식
-    window.location.href = `/result?${query.toString()}`;
+    const fullUrl = `/result?${query.toString()}`;
+    console.log("➡️ 이동 중:", fullUrl);
+
+    // ✅ 완전 새로고침 방식
+    window.location.href = fullUrl;
   };
 
   return (
