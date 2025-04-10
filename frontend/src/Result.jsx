@@ -76,13 +76,8 @@ export default function Result() {
     socket.onmessage = (event) => {
       const message = JSON.parse(event.data);
       const { event: type, data } = message;
-
-      if (type === "init") {
-        setTotalCount(data.total);
-        setStatus("⏳ 데이터를 수신 중입니다... 0%");
-      } else if (type === "progress") {
-        setDoneCount((prev) => prev + 1);
-      } else if (type === "hidden") {
+  
+      if (type === "hidden") {
         setHiddenResults((prev) => insertUniqueSorted(prev, data));
       } else if (type === "public") {
         setPublicResults((prev) => insertUniqueSorted(prev, data));
@@ -95,7 +90,6 @@ export default function Result() {
         socket.close();
       }
     };
-
     socket.onerror = (e) => {
       console.error("❌ WebSocket 오류", e);
       setStatus("❌ 서버 연결 오류");
