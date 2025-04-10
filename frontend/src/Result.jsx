@@ -1,5 +1,5 @@
 // result.jsx
-// ✅ 중복 제거 재연결 + 자동 재시도 + WebSocket 기반
+// ✅ 중복 제거 재연결 + 자동 재시도 + WebSocket 기반 + ping/pong 응답
 import { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 
@@ -7,7 +7,7 @@ export default function Result() {
   const navigate = useNavigate();
   const [hiddenResults, setHiddenResults] = useState([]);
   const [publicResults, setPublicResults] = useState([]);
-  const [fetchedCsq, setFetchedCsq] = useState(new Set()); // ✅ 이미 수신한 캠페인
+  const [fetchedCsq, setFetchedCsq] = useState(new Set());
   const [filter, setFilter] = useState({ hidden: "", public: "" });
   const [status, setStatus] = useState("⏳ 데이터를 수신 중입니다...");
   const socketRef = useRef(null);
@@ -58,7 +58,7 @@ export default function Result() {
           use_full_range,
           start_id: start_id ? parseInt(start_id) : undefined,
           end_id: end_id ? parseInt(end_id) : undefined,
-          exclude_ids: Array.from(fetchedCsq), // ✅ 이미 수신한 캠페인 제외
+          exclude_ids: Array.from(fetchedCsq),
         })
       );
     };
@@ -66,6 +66,11 @@ export default function Result() {
     socket.onmessage = (event) => {
       const message = JSON.parse(event.data);
       const { event: type, data } = message;
+
+      if (type === "ping") {
+        socket.send(JSON.stringify({ event: "pong", data: "💓" }));
+        return;
+      }
 
       if (type === "hidden") {
         setHiddenResults((prev) => insertUniqueSorted(prev, data, true));
