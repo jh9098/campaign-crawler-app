@@ -10,7 +10,6 @@ MAIN_URL = "https://dbg.shopreview.co.kr/usr"
 CAMPAIGN_URL_TEMPLATE = "https://dbg.shopreview.co.kr/usr/campaign_detail?csq={}"
 
 def get_public_campaigns(session):
-    print('[크롤링 실행] get_public_campaigns 진입')
     public_campaigns = set()
     for attempt in range(3):
         try:
@@ -107,7 +106,6 @@ def fetch_campaign_data(campaign_id, session, public_campaigns, selected_days, e
         return None
 
 def run_crawler_streaming(session_cookie, selected_days, exclude_keywords, use_full_range=True, start_id=None, end_id=None, exclude_ids=None):
-    print('[크롤링 실행] run_crawler_streaming() 진입')
     session = requests.Session()
     session.cookies.set("PHPSESSID", session_cookie)
 
@@ -125,22 +123,16 @@ def run_crawler_streaming(session_cookie, selected_days, exclude_keywords, use_f
 
     if exclude_ids is None:
         exclude_ids = set()
-    else:
-        exclude_ids = set(map(int, exclude_ids))  # string → int 변환
 
     for cid in range(start_id, end_id + 1):
         if cid in exclude_ids:
-            print(f"[스킵] 이미 크롤링한 cid={cid} → 건너뜀")
             continue
-
         result = fetch_campaign_data(cid, session, public_campaigns, selected_days, exclude_keywords)
         if result:
             h, p = result
             if h:
-                print(f"[전송] 숨김 캠페인 csq={cid}")
                 yield {"event": "hidden", "data": h}
             if p:
-                print(f"[전송] 공개 캠페인 csq={cid}")
                 yield {"event": "public", "data": p}
 
     yield {"event": "done", "data": "크롤링 완료"}
