@@ -1,4 +1,4 @@
-// ✅ result.jsx (진행률 표시 포함)
+// ✅ result.jsx (진행률 표시 + 자동 다운로드 + Clear 버튼)
 
 import { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
@@ -10,11 +10,11 @@ export default function Result() {
   const [filter, setFilter] = useState({ hidden: "", public: "" });
   const [status, setStatus] = useState("⏳ 데이터를 수신 중입니다...");
   const [retryCount, setRetryCount] = useState(0);
-  const fetchedCsq = useRef(new Set());
-  const socketRef = useRef(null);
-  const reconnectTimeout = useRef(null);
   const [progress, setProgress] = useState(null);
   const [range, setRange] = useState({ start: null, end: null });
+  const socketRef = useRef(null);
+  const reconnectTimeout = useRef(null);
+  const fetchedCsq = useRef(new Set());
 
   const getCsq = (row) => {
     const match = row.match(/csq=(\d+)/);
@@ -51,6 +51,15 @@ export default function Result() {
     localStorage.setItem("publicResults", JSON.stringify(publicResults));
   }, [publicResults]);
 
+  const clearResults = () => {
+    localStorage.removeItem("hiddenResults");
+    localStorage.removeItem("publicResults");
+    setHiddenResults([]);
+    setPublicResults([]);
+    fetchedCsq.current = new Set();
+    setProgress(null);
+  };
+
   const downloadTxt = (data, filename) => {
     const blob = new Blob([data.join("\n")], { type: "text/plain" });
     const url = URL.createObjectURL(blob);
@@ -59,15 +68,6 @@ export default function Result() {
     a.download = filename;
     a.click();
     URL.revokeObjectURL(url);
-  };
-
-  const clearResults = () => {
-    localStorage.removeItem("hiddenResults");
-    localStorage.removeItem("publicResults");
-    setHiddenResults([]);
-    setPublicResults([]);
-    fetchedCsq.current = new Set();
-    setProgress(null);
   };
 
   useEffect(() => {
@@ -121,7 +121,6 @@ export default function Result() {
           socket.close();
         }
 
-        // ✅ 진행률 업데이트 (캠페인 번호 포함된 경우)
         const csq = getCsq(data);
         if (csq && range.start && range.end) {
           const percent = Math.floor(((parseInt(csq) - range.start) / (range.end - range.start)) * 100);
