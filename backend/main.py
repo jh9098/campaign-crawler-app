@@ -37,6 +37,8 @@ async def websocket_endpoint(websocket: WebSocket):
 
         # ✅ 크롤링 결과 전송 task
         async def send_results():
+            total_count = end_id - start_id + 1
+            await websocket.send_text(json.dumps({"event": "init", "data": {"total": total_count}}))
             for result in run_crawler_streaming(
                 session_cookie=session_cookie,
                 selected_days=selected_days,
