@@ -18,19 +18,13 @@ export default function App() {
     const savedDays = JSON.parse(localStorage.getItem("last_days") || "[]");
     const savedExclude = localStorage.getItem("last_exclude");
     const savedUseFullRange = localStorage.getItem("last_use_full_range") === "true";
-    const savedStartId = localStorage.getItem("last_start_id");
-    const savedEndId = localStorage.getItem("last_end_id");
 
     if (savedCookie) setCookie(savedCookie);
     if (savedDays.length > 0) setSelectedDays(savedDays);
     if (savedExclude) setExclude(savedExclude);
     setUseFullRange(savedUseFullRange);
 
-    // ✅ 수동 범위는 result 페이지 진입 시에만 적용
-    if (window.location.pathname === "/result") {
-      if (savedStartId) setStartId(Number(savedStartId));
-      if (savedEndId) setEndId(Number(savedEndId));
-    }
+    // ❌ 수동 범위는 URL 파라미터로 전달하므로, localStorage에서 불러오지 않음
   }, []);
 
   const toggleDay = (day) => {
@@ -60,12 +54,15 @@ export default function App() {
 
     setLoading(true);
 
+    // ✅ 설정 저장
     localStorage.setItem("last_cookie", cookie);
     localStorage.setItem("last_days", JSON.stringify(selectedDays));
     localStorage.setItem("last_exclude", exclude);
     localStorage.setItem("last_use_full_range", String(useFullRange));
-    localStorage.setItem("last_start_id", String(manualStartId));
-    localStorage.setItem("last_end_id", String(manualEndId));
+    if (!useFullRange) {
+      localStorage.setItem("last_start_id", String(manualStartId));
+      localStorage.setItem("last_end_id", String(manualEndId));
+    }
 
     const query = new URLSearchParams({
       session_cookie: cookie,
