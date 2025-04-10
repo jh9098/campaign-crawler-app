@@ -133,8 +133,11 @@ def run_crawler_streaming(session_cookie, selected_days, exclude_keywords, use_f
         for future in as_completed(futures):
             try:
                 cid, result = future.result()
-                yield {"event": "progress", "data": cid}  # ✅ 무조건 카운트
 
+                # ✅ 모든 캠페인 번호 처리 시마다 진행률용 이벤트 전송
+                yield {"event": "progress", "data": cid}
+
+                # ✅ 조건 충족 시만 결과 전송
                 if result:
                     h, p = result
                     if h:
