@@ -1,4 +1,4 @@
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect 
 from fastapi.middleware.cors import CORSMiddleware
 from crawler import run_crawler_streaming
 import json
@@ -30,6 +30,10 @@ async def websocket_endpoint(websocket: WebSocket):
         start_id = data.get("start_id")
         end_id = data.get("end_id")
         exclude_ids = set(map(int, data.get("exclude_ids", [])))
+
+        # ✅ 문자열로 넘어온 use_full_range를 bool로 변환
+        if isinstance(use_full_range, str):
+            use_full_range = use_full_range.lower() == "true"
 
         # ✅ 문자열로 들어온 경우를 위한 안전한 정수 변환
         try:
