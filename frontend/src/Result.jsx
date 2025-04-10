@@ -10,6 +10,7 @@ export default function Result() {
   const [totalCount, setTotalCount] = useState(0);
   const [doneCount, setDoneCount] = useState(0);
   const socketRef = useRef(null);
+  const fetchedCsq = useRef(new Set());
 
   const getCsq = (row) => {
     const match = row.match(/csq=(\d+)/);
@@ -18,7 +19,8 @@ export default function Result() {
 
   const insertUniqueSorted = (arr, newItem) => {
     const csq = getCsq(newItem);
-    if (!csq) return arr;
+    if (!csq || fetchedCsq.current.has(csq)) return arr;
+    fetchedCsq.current.add(csq);
     const filtered = arr.filter((item) => getCsq(item) !== csq);
     filtered.push(newItem);
     return filtered.sort((a, b) => {
@@ -33,6 +35,11 @@ export default function Result() {
     const savedPublic = JSON.parse(localStorage.getItem("publicResults") || "[]");
     setHiddenResults(savedHidden);
     setPublicResults(savedPublic);
+    // 이미 저장된 CSQ 추출해서 중복 방지용 세트 초기화
+    const allCsqs = [...savedHidden, ...savedPublic]
+      .map(getCsq)
+      .filter((csq) => csq);
+    fetchedCsq.current = new Set(allCsqs);
   }, []);
 
   useEffect(() => {
@@ -44,63 +51,64 @@ export default function Result() {
   }, [publicResults]);
 
   useEffect(() => {
-    setTimeout(() => {
-      const urlParams = new URLSearchParams(window.location.search);
-      const session_cookie = urlParams.get("session_cookie");
-      const selected_days = urlParams.get("selected_days");
-      const exclude_keywords = urlParams.get("exclude_keywords") || "";
-      const use_full_range = urlParams.get("use_full_range") === "true";
-      const start_id = urlParams.get("start_id");
-      const end_id = urlParams.get("end_id");
+    const urlParams = new URLSearchParams(window.location.search);
+    const session_cookie = urlParams.get("session_cookie");
+    const selected_days = urlParams.get("selected_days");
+    const exclude_keywords = urlParams.get("exclude_keywords") || "";
+    const use_full_range = urlParams.get("use_full_range") === "true";
+    const start_id = urlParams.get("start_id");
+    const end_id = urlParams.get("end_id");
 
-      if (!session_cookie || !selected_days) {
-        setStatus("❌ 세션 정보 누락. 처음부터 다시 시도해주세요.");
-        return;
+    if (!session_cookie || !selected_days) {
+      setStatus("❌ 세션 정보 누락. 처음부터 다시 시도해주세요.");
+      return;
+    }
+
+    const socket = new WebSocket("wss://campaign-crawler-app.onrender.com/ws/crawl");
+    socketRef.current = socket;
+
+    socket.onopen = () => {
+      socket.send(
+        JSON.stringify({
+          session_cookie,
+          selected_days,
+          exclude_keywords,
+          use_full_range,
+          start_id: start_id ? parseInt(start_id) : undefined,
+          end_id: end_id ? parseInt(end_id) : undefined,
+          exclude_ids: Array.from(fetchedCsq.current),
+        })
+      );
+    };
+
+    socket.onmessage = (event) => {
+      const message = JSON.parse(event.data);
+      const { event: type, data } = message;
+
+      if (type === "hidden") {
+        setHiddenResults((prev) => insertUniqueSorted(prev, data));
+      } else if (type === "public") {
+        setPublicResults((prev) => insertUniqueSorted(prev, data));
+      } else if (type === "done") {
+        setStatus("✅ 데이터 수신 완료");
+        socket.close();
+      } else if (type === "error") {
+        console.error("❌ 오류:", data);
+        setStatus("❌ 에러 발생: " + data);
+        socket.close();
       }
+    };
 
-      const socket = new WebSocket("wss://campaign-crawler-app.onrender.com/ws/crawl");
-      socketRef.current = socket;
+    socket.onerror = (e) => {
+      console.error("❌ WebSocket 오류", e);
+      setStatus("❌ 서버 연결 오류");
+    };
 
-      socket.onopen = () => {
-        socket.send(
-          JSON.stringify({
-            session_cookie,
-            selected_days,
-            exclude_keywords,
-            use_full_range,
-            start_id: start_id ? parseInt(start_id) : undefined,
-            end_id: end_id ? parseInt(end_id) : undefined,
-          })
-        );
-      };
+    socket.onclose = () => {
+      console.log("🔌 연결 종료됨");
+    };
 
-      socket.onmessage = (event) => {
-        const message = JSON.parse(event.data);
-        const { event: type, data } = message;
-
-        if (type === "hidden") {
-          setHiddenResults((prev) => insertUniqueSorted(prev, data));
-        } else if (type === "public") {
-          setPublicResults((prev) => insertUniqueSorted(prev, data));
-        } else if (type === "done") {
-          setStatus("✅ 데이터 수신 완료");
-          socket.close();
-        } else if (type === "error") {
-          console.error("❌ 오류:", data);
-          setStatus("❌ 에러 발생: " + data);
-          socket.close();
-        }
-      };
-
-      socket.onerror = (e) => {
-        console.error("❌ WebSocket 오류", e);
-        setStatus("❌ 서버 연결 오류");
-      };
-
-      socket.onclose = () => {
-        console.log("🔌 연결 종료됨");
-      };
-    }, 0);
+    return () => socket.close();
   }, []);
 
   useEffect(() => {
@@ -138,9 +146,7 @@ export default function Result() {
         <h3>
           {title} ({filtered.length}건)
           <button
-            onClick={() =>
-              downloadTxt(filtered, isHidden ? "숨김캠페인.txt" : "공개캠페인.txt")
-            }
+            onClick={() => downloadTxt(filtered, isHidden ? "숨김캠페인.txt" : "공개캠페인.txt")}
             style={{
               marginLeft: 12,
               padding: "4px 10px",
@@ -165,11 +171,7 @@ export default function Result() {
           style={{ marginBottom: 10, width: 300 }}
         />
 
-        <table
-          border="1"
-          cellPadding="6"
-          style={{ borderCollapse: "collapse", width: "100%" }}
-        >
+        <table border="1" cellPadding="6" style={{ borderCollapse: "collapse", width: "100%" }}>
           <thead>
             <tr>
               <th>삭제</th>
@@ -189,7 +191,6 @@ export default function Result() {
               const [type, review, mall, price, point, time, name, url] = row.split(" & ");
               const csq = getCsq(url) || "-";
               const realIndex = data.findIndex((item) => item === row);
-
               return (
                 <tr key={csq + "_" + idx}>
                   <td>
@@ -214,9 +215,7 @@ export default function Result() {
                   <td>{time}</td>
                   <td>{name}</td>
                   <td>
-                    <a href={url} target="_blank" rel="noreferrer">
-                      바로가기
-                    </a>
+                    <a href={url} target="_blank" rel="noreferrer">바로가기</a>
                   </td>
                   <td>{csq}</td>
                 </tr>
