@@ -1,6 +1,7 @@
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
-from crawler import run_crawler_streaming, get_public_campaigns  # get_public_campaigns 임포트 필요
+from crawler import run_crawler_streaming, get_public_campaigns
+import requests  # ✅ 세션을 수동 생성하기 위해 필요
 import json
 import asyncio
 
@@ -9,7 +10,7 @@ app = FastAPI()
 # ✅ CORS 설정
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["https://dbgapp.netlify.app"],  # 당신의 실제 프론트 배포 주소
+    allow_origins=["https://dbgapp.netlify.app"],  # 프론트 배포 주소
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -19,7 +20,7 @@ app.add_middleware(
 async def websocket_endpoint(websocket: WebSocket):
     await websocket.accept()
     try:
-        # ✅ 프론트에서 초기 파라미터 수신
+        # ✅ 클라이언트에서 초기 파라미터 수신
         params = await websocket.receive_text()
         data = json.loads(params)
 
@@ -35,16 +36,19 @@ async def websocket_endpoint(websocket: WebSocket):
         if isinstance(exclude_keywords, str):
             exclude_keywords = [k.strip() for k in exclude_keywords.split(",") if k.strip()]
 
-        # ✅ 진행률 계산용 total_count 계산
+        # ✅ 세션 구성 (get_public_campaigns 호출에 필요)
+        session = requests.Session()
+        session.cookies.set("PHPSESSID", session_cookie)
+
+        # ✅ 진행률 계산용 total_count 결정
         if use_full_range:
-            session = requests.Session()
-            session.cookies.set("PHPSESSID", session_cookie)
             public_campaigns = get_public_campaigns(session)
             if not public_campaigns:
                 await websocket.send_text(json.dumps({"event": "error", "data": "공개 캠페인 정보를 가져오지 못했습니다."}))
                 return
             start_id = min(public_campaigns)
             end_id = max(public_campaigns)
+            print(f"✅ public_campaigns 범위: {start_id} ~ {end_id}")
             total_count = end_id - start_id + 1
         elif start_id is not None and end_id is not None:
             total_count = end_id - start_id + 1
@@ -52,7 +56,7 @@ async def websocket_endpoint(websocket: WebSocket):
             await websocket.send_text(json.dumps({"event": "error", "data": "범위를 확인할 수 없습니다."}))
             return
 
-        # ✅ totalCount 전송 (진행률 계산용)
+        # ✅ init 메시지로 totalCount 전송
         await websocket.send_text(json.dumps({"event": "init", "data": {"total": total_count}}))
 
         # ✅ 크롤링 결과 전송 task
@@ -68,13 +72,13 @@ async def websocket_endpoint(websocket: WebSocket):
                 await websocket.send_text(json.dumps(result))
             await websocket.send_text(json.dumps({"event": "done", "data": "크롤링 완료"}))
 
-        # ✅ 5초마다 ping 메시지 전송 task
+        # ✅ ping task (5초마다 keep-alive)
         async def send_heartbeat():
             while True:
                 await asyncio.sleep(5)
                 await websocket.send_text(json.dumps({"event": "ping", "data": "💓"}))
 
-        # ✅ 둘 다 동시에 실행
+        # ✅ 동시 실행
         await asyncio.gather(
             send_results(),
             send_heartbeat()
