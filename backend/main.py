@@ -20,14 +20,7 @@ async def websocket_endpoint(websocket: WebSocket):
     print("✅ WebSocket 연결 수락됨")
     try:
         params = await websocket.receive_text()
-        print(f"📦 받은 raw 텍스트: {params}")
-
-        try:
-            data = json.loads(params)
-        except json.JSONDecodeError as je:
-            print(f"❌ JSON 파싱 오류: {je}")
-            await websocket.send_text(json.dumps({"event": "error", "data": "잘못된 JSON 포맷입니다."}))
-            return
+        data = json.loads(params)
 
         session_cookie = data.get("session_cookie")
         selected_days = data.get("selected_days", [])
@@ -35,20 +28,7 @@ async def websocket_endpoint(websocket: WebSocket):
         use_full_range = data.get("use_full_range", True)
         start_id = data.get("start_id")
         end_id = data.get("end_id")
-        exclude_ids_raw = data.get("exclude_ids", [])
-
-        print("[WebSocket 요청 파라미터 수신 완료]")
-        print(f" > session_cookie: {session_cookie}")
-        print(f" > selected_days: {selected_days}")
-        print(f" > exclude_keywords: {exclude_keywords}")
-        print(f" > start_id: {start_id}, end_id: {end_id}")
-        print(f" > exclude_ids(raw): {exclude_ids_raw}")
-
-        try:
-            exclude_ids = set(map(int, exclude_ids_raw))
-        except Exception as conv_err:
-            print(f"❌ exclude_ids 변환 오류: {conv_err}")
-            exclude_ids = set()
+        exclude_ids = set(map(int, data.get("exclude_ids", [])))
 
         if isinstance(selected_days, str):
             selected_days = [s.strip() for s in selected_days.split(",") if s.strip()]
@@ -92,5 +72,4 @@ async def websocket_endpoint(websocket: WebSocket):
     except WebSocketDisconnect:
         print("❌ 클라이언트 연결 끊김")
     except Exception as e:
-        print(f"❌ 예외 발생: {e}")
         await websocket.send_text(json.dumps({"event": "error", "data": str(e)}))
