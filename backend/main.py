@@ -17,6 +17,7 @@ app.add_middleware(
 @app.websocket("/ws/crawl")
 async def websocket_endpoint(websocket: WebSocket):
     await websocket.accept()
+    print("✅ WebSocket 연결 수락됨")
     try:
         params = await websocket.receive_text()
         data = json.loads(params)
@@ -51,9 +52,21 @@ async def websocket_endpoint(websocket: WebSocket):
         async def send_heartbeat():
             while True:
                 await asyncio.sleep(5)
+                print("💓 서버 → 클라이언트 ping 전송")
                 await websocket.send_text(json.dumps({"event": "ping", "data": "💓"}))
 
-        await asyncio.gather(send_results(), send_heartbeat())
+        async def receive_pong():
+            while True:
+                try:
+                    msg = await websocket.receive_text()
+                    pong = json.loads(msg)
+                    if pong.get("event") == "pong":
+                        print("💓 클라이언트 → 서버 pong 수신")
+                except WebSocketDisconnect:
+                    print("❌ 클라이언트 연결 끊김 (pong 대기 중)")
+                    break
+
+        await asyncio.gather(send_results(), send_heartbeat(), receive_pong())
 
     except WebSocketDisconnect:
         print("❌ 클라이언트 연결 끊김")
