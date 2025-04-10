@@ -7,8 +7,6 @@ export default function Result() {
   const [publicResults, setPublicResults] = useState([]);
   const [filter, setFilter] = useState({ hidden: "", public: "" });
   const [status, setStatus] = useState("⏳ 데이터를 수신 중입니다...");
-  const [totalCount, setTotalCount] = useState(0);
-  const [doneCount, setDoneCount] = useState(0);
   const socketRef = useRef(null);
 
   const getCsq = (row) => {
@@ -76,7 +74,7 @@ export default function Result() {
     socket.onmessage = (event) => {
       const message = JSON.parse(event.data);
       const { event: type, data } = message;
-  
+
       if (type === "hidden") {
         setHiddenResults((prev) => insertUniqueSorted(prev, data));
       } else if (type === "public") {
@@ -90,6 +88,7 @@ export default function Result() {
         socket.close();
       }
     };
+
     socket.onerror = (e) => {
       console.error("❌ WebSocket 오류", e);
       setStatus("❌ 서버 연결 오류");
@@ -101,14 +100,6 @@ export default function Result() {
 
     return () => socket.close();
   }, []);
-
-  // ✅ 진행률 퍼센트 표시
-  useEffect(() => {
-    if (totalCount > 0 && doneCount < totalCount) {
-      const percent = Math.floor((doneCount / totalCount) * 100);
-      setStatus(`⏳ 데이터를 수신 중입니다... ${percent}%`);
-    }
-  }, [doneCount, totalCount]);
 
   const downloadTxt = (data, filename) => {
     const blob = new Blob([data.join("\n")], { type: "text/plain" });
@@ -138,15 +129,8 @@ export default function Result() {
         <h3>
           {title} ({filtered.length}건)
           <button
-            onClick={() =>
-              downloadTxt(filtered, isHidden ? "숨김캠페인.txt" : "공개캠페인.txt")
-            }
-            style={{
-              marginLeft: 12,
-              padding: "4px 10px",
-              fontSize: 14,
-              display: data.length > 0 ? "inline-block" : "none",
-            }}
+            onClick={() => downloadTxt(filtered, isHidden ? "숨김캠페인.txt" : "공개캠페인.txt")}
+            style={{ marginLeft: 12, padding: "4px 10px", fontSize: 14, display: data.length > 0 ? "inline-block" : "none" }}
           >
             📥 다운로드
           </button>
@@ -156,20 +140,11 @@ export default function Result() {
           type="text"
           placeholder="🔎 필터링할 키워드를 입력하세요"
           value={keyword}
-          onChange={(e) =>
-            setFilter((prev) => ({
-              ...prev,
-              [isHidden ? "hidden" : "public"]: e.target.value,
-            }))
-          }
+          onChange={(e) => setFilter((prev) => ({ ...prev, [isHidden ? "hidden" : "public"]: e.target.value }))}
           style={{ marginBottom: 10, width: 300 }}
         />
 
-        <table
-          border="1"
-          cellPadding="6"
-          style={{ borderCollapse: "collapse", width: "100%" }}
-        >
+        <table border="1" cellPadding="6" style={{ borderCollapse: "collapse", width: "100%" }}>
           <thead>
             <tr>
               <th>삭제</th>
@@ -189,22 +164,10 @@ export default function Result() {
               const [type, review, mall, price, point, time, name, url] = row.split(" & ");
               const csq = getCsq(url) || "-";
               const realIndex = data.findIndex((item) => item === row);
-
               return (
                 <tr key={csq + "_" + idx}>
                   <td>
-                    <button
-                      onClick={() => handleDelete(realIndex)}
-                      style={{
-                        backgroundColor: "red",
-                        color: "white",
-                        border: "none",
-                        padding: "4px 8px",
-                        cursor: "pointer",
-                      }}
-                    >
-                      삭제
-                    </button>
+                    <button onClick={() => handleDelete(realIndex)} style={{ backgroundColor: "red", color: "white", border: "none" }}>삭제</button>
                   </td>
                   <td>{type}</td>
                   <td>{review}</td>
@@ -213,11 +176,7 @@ export default function Result() {
                   <td>{point}</td>
                   <td>{time}</td>
                   <td>{name}</td>
-                  <td>
-                    <a href={url} target="_blank" rel="noreferrer">
-                      바로가기
-                    </a>
-                  </td>
+                  <td><a href={url} target="_blank" rel="noreferrer">바로가기</a></td>
                   <td>{csq}</td>
                 </tr>
               );
@@ -233,8 +192,7 @@ export default function Result() {
       <h2>📡 실시간 크롤링 결과</h2>
       <p style={{ color: "green" }}>{status}</p>
       <button onClick={() => navigate("/")}>🔙 처음으로</button>
-      <br />
-      <br />
+      <br /><br />
       {renderTable(hiddenResults, "🔒 숨겨진 캠페인", true)}
       {renderTable(publicResults, "🌐 공개 캠페인", false)}
     </div>
