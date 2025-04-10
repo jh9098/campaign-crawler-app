@@ -7,15 +7,15 @@ export default function Result() {
   const [publicResults, setPublicResults] = useState([]);
   const [filter, setFilter] = useState({ hidden: "", public: "" });
   const [status, setStatus] = useState("⏳ 데이터를 수신 중입니다...");
+  const [totalCount, setTotalCount] = useState(0); // ✅ 전체 캠페인 수
+  const [doneCount, setDoneCount] = useState(0);   // ✅ 완료된 캠페인 수
   const socketRef = useRef(null);
 
-  // ✅ 캠페인 번호 추출
   const getCsq = (row) => {
     const match = row.match(/csq=(\d+)/);
     return match ? match[1] : null;
   };
 
-  // ✅ 중복 제거 + 시간순 정렬
   const insertUniqueSorted = (arr, newItem) => {
     const csq = getCsq(newItem);
     if (!csq) return arr;
@@ -28,7 +28,6 @@ export default function Result() {
     });
   };
 
-  // ✅ 저장된 데이터 복원
   useEffect(() => {
     const savedHidden = JSON.parse(localStorage.getItem("hiddenResults") || "[]");
     const savedPublic = JSON.parse(localStorage.getItem("publicResults") || "[]");
@@ -36,7 +35,6 @@ export default function Result() {
     setPublicResults(savedPublic);
   }, []);
 
-  // ✅ 변경 시 저장
   useEffect(() => {
     localStorage.setItem("hiddenResults", JSON.stringify(hiddenResults));
   }, [hiddenResults]);
@@ -45,7 +43,6 @@ export default function Result() {
     localStorage.setItem("publicResults", JSON.stringify(publicResults));
   }, [publicResults]);
 
-  // ✅ 소켓 연결 및 수신
   useEffect(() => {
     const urlParams = new URLSearchParams(window.location.search);
     const session_cookie = urlParams.get("session_cookie");
@@ -80,10 +77,15 @@ export default function Result() {
       const message = JSON.parse(event.data);
       const { event: type, data } = message;
 
-      if (type === "hidden") {
+      if (type === "init") {
+        setTotalCount(data.total); // ✅ 전체 캠페인 수 저장
+        setStatus("⏳ 데이터를 수신 중입니다... 0%");
+      } else if (type === "hidden") {
         setHiddenResults((prev) => insertUniqueSorted(prev, data));
+        setDoneCount((prev) => prev + 1); // ✅ 완료 수 증가
       } else if (type === "public") {
         setPublicResults((prev) => insertUniqueSorted(prev, data));
+        setDoneCount((prev) => prev + 1); // ✅ 완료 수 증가
       } else if (type === "done") {
         setStatus("✅ 데이터 수신 완료");
         socket.close();
@@ -106,7 +108,14 @@ export default function Result() {
     return () => socket.close();
   }, []);
 
-  // ✅ 다운로드 함수
+  // ✅ 진행률 계산
+  useEffect(() => {
+    if (totalCount > 0 && doneCount < totalCount) {
+      const percent = Math.floor((doneCount / totalCount) * 100);
+      setStatus(`⏳ 데이터를 수신 중입니다... ${percent}%`);
+    }
+  }, [doneCount, totalCount]);
+
   const downloadTxt = (data, filename) => {
     const blob = new Blob([data.join("\n")], { type: "text/plain" });
     const url = URL.createObjectURL(blob);
@@ -117,114 +126,115 @@ export default function Result() {
     URL.revokeObjectURL(url);
   };
 
-  // ✅ 테이블 렌더링 함수
   const renderTable = (data, title, isHidden) => {
-  const keyword = isHidden ? filter.hidden : filter.public;
-  const filtered = data.filter((row) => row.includes(keyword));
-  const setData = isHidden ? setHiddenResults : setPublicResults;
+    const keyword = isHidden ? filter.hidden : filter.public;
+    const filtered = data.filter((row) => row.includes(keyword));
+    const setData = isHidden ? setHiddenResults : setPublicResults;
 
-  const handleDelete = (idxToDelete) => {
-    setData((prev) => {
-      const updated = [...prev];
-      updated.splice(idxToDelete, 1);
-      return updated;
-    });
-  };
+    const handleDelete = (idxToDelete) => {
+      setData((prev) => {
+        const updated = [...prev];
+        updated.splice(idxToDelete, 1);
+        return updated;
+      });
+    };
 
-  return (
-    <div style={{ marginBottom: 40 }}>
-      <h3>
-        {title} ({filtered.length}건)
-        <button
-          onClick={() =>
-            downloadTxt(filtered, isHidden ? "숨김캠페인.txt" : "공개캠페인.txt")
+    return (
+      <div style={{ marginBottom: 40 }}>
+        <h3>
+          {title} ({filtered.length}건)
+          <button
+            onClick={() =>
+              downloadTxt(filtered, isHidden ? "숨김캠페인.txt" : "공개캠페인.txt")
+            }
+            style={{
+              marginLeft: 12,
+              padding: "4px 10px",
+              fontSize: 14,
+              display: data.length > 0 ? "inline-block" : "none",
+            }}
+          >
+            📥 다운로드
+          </button>
+        </h3>
+
+        <input
+          type="text"
+          placeholder="🔎 필터링할 키워드를 입력하세요"
+          value={keyword}
+          onChange={(e) =>
+            setFilter((prev) => ({
+              ...prev,
+              [isHidden ? "hidden" : "public"]: e.target.value,
+            }))
           }
-          style={{
-            marginLeft: 12,
-            padding: "4px 10px",
-            fontSize: 14,
-            display: data.length > 0 ? "inline-block" : "none",
-          }}
+          style={{ marginBottom: 10, width: 300 }}
+        />
+
+        <table
+          border="1"
+          cellPadding="6"
+          style={{ borderCollapse: "collapse", width: "100%" }}
         >
-          📥 다운로드
-        </button>
-      </h3>
+          <thead>
+            <tr>
+              <th>삭제</th>
+              <th>구분</th>
+              <th>리뷰</th>
+              <th>쇼핑몰</th>
+              <th>가격</th>
+              <th>포인트</th>
+              <th>시간</th>
+              <th>상품명</th>
+              <th>링크</th>
+              <th>번호</th>
+            </tr>
+          </thead>
+          <tbody>
+            {filtered.map((row, idx) => {
+              const [type, review, mall, price, point, time, name, url] = row.split(" & ");
+              const csq = getCsq(url) || "-";
+              const realIndex = data.findIndex((item) => item === row);
 
-      <input
-        type="text"
-        placeholder="🔎 필터링할 키워드를 입력하세요"
-        value={keyword}
-        onChange={(e) =>
-          setFilter((prev) => ({
-            ...prev,
-            [isHidden ? "hidden" : "public"]: e.target.value,
-          }))
-        }
-        style={{ marginBottom: 10, width: 300 }}
-      />
-
-      <table
-        border="1"
-        cellPadding="6"
-        style={{ borderCollapse: "collapse", width: "100%" }}
-      >
-        <thead>
-          <tr>
-            <th>삭제</th>
-            <th>구분</th>
-            <th>리뷰</th>
-            <th>쇼핑몰</th>
-            <th>가격</th>
-            <th>포인트</th>
-            <th>시간</th>
-            <th>상품명</th>
-            <th>링크</th>
-            <th>번호</th>
-          </tr>
-        </thead>
-        <tbody>
-          {filtered.map((row, idx) => {
-            const [type, review, mall, price, point, time, name, url] = row.split(" & ");
-            const csq = getCsq(url) || "-";
-            const realIndex = data.findIndex((item) => item === row);
-        
-            return (
-              <tr key={csq + "_" + idx}>
-                <td>
-                  <button
-                    onClick={() => handleDelete(realIndex)}
-                    style={{
-                      backgroundColor: "red",
-                      color: "white",
-                      border: "none",
-                      padding: "4px 8px",
-                      cursor: "pointer",
-                    }}
-                  >
-                    삭제
-                  </button>
-                </td>
-                <td>{type}</td>
-                <td>{review}</td>
-                <td>{mall}</td>
-                <td>{Number(price.replace(/[^\d]/g, "")).toLocaleString("ko-KR")}</td>
-                <td>{point}</td>
-                <td>{time}</td>
-                <td>{name}</td>
-                <td>
-                  <a href={url} target="_blank" rel="noreferrer">
-                    바로가기
-                  </a>
-                </td>
-                <td>{csq}</td>
-              </tr>
-            );
-          })}
-        </tbody>
-      </table>
-    </div>
-  );
-};
+              return (
+                <tr key={csq + "_" + idx}>
+                  <td>
+                    <button
+                      onClick={() => handleDelete(realIndex)}
+                      style={{
+                        backgroundColor: "red",
+                        color: "white",
+                        border: "none",
+                        padding: "4px 8px",
+                        cursor: "pointer",
+                      }}
+                    >
+                      삭제
+                    </button>
+                  </td>
+                  <td>{type}</td>
+                  <td>{review}</td>
+                  <td>{mall}</td>
+                  <td>
+                    {Number(price.replace(/[^\d]/g, "")).toLocaleString("ko-KR")}
+                  </td>
+                  <td>{point}</td>
+                  <td>{time}</td>
+                  <td>{name}</td>
+                  <td>
+                    <a href={url} target="_blank" rel="noreferrer">
+                      바로가기
+                    </a>
+                  </td>
+                  <td>{csq}</td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+    );
+  };
 
   return (
     <div style={{ padding: 20 }}>
