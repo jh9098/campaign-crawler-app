@@ -32,7 +32,7 @@ def fetch_campaign_data(campaign_id, session, public_campaigns, selected_days, e
     try:
         response = session.get(url, verify=False, timeout=10)
         response.raise_for_status()
-        soup = BeautifulSoup(response.text, "lxml")
+        soup = BeautifulSoup(response.text, "html.parser")
 
         if soup.find("script", string="window.location.href = '/usr/login_form';"):
             return None
@@ -126,9 +126,6 @@ def run_crawler_streaming(session_cookie, selected_days, exclude_keywords, use_f
 
     for cid in range(start_id, end_id + 1):
         result = fetch_campaign_data(cid, session, public_campaigns, selected_days, exclude_keywords)
-
-        yield {"event": "progress", "data": cid}  # 진행률 전송
-
         if result:
             h, p = result
             if h:
