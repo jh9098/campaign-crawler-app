@@ -1,8 +1,9 @@
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect 
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from crawler import run_crawler_streaming
 import json
 import asyncio
+from datetime import datetime
 
 app = FastAPI()
 
@@ -18,7 +19,7 @@ app.add_middleware(
 @app.websocket("/ws/crawl")
 async def websocket_endpoint(websocket: WebSocket):
     await websocket.accept()
-    print("✅ WebSocket 연결 수락됨")
+    print("\n✅ WebSocket 연결 수락됨")
     try:
         params = await websocket.receive_text()
         data = json.loads(params)
@@ -31,11 +32,12 @@ async def websocket_endpoint(websocket: WebSocket):
         end_id = data.get("end_id")
         exclude_ids = set(map(int, data.get("exclude_ids", [])))
 
-        # ✅ 문자열로 넘어온 use_full_range를 bool로 변환
-        if isinstance(use_full_range, str):
-            use_full_range = use_full_range.lower() == "true"
+        # ✅ 디버그 로그에 타임스탬프 출력
+        print(f"\n🧪 WebSocket 수신 파라미터 ({datetime.now()}):")
+        print(f"   use_full_range: {use_full_range} ({type(use_full_range)})")
+        print(f"   start_id: {start_id} ({type(start_id)})")
+        print(f"   end_id: {end_id} ({type(end_id)})")
 
-        # ✅ 문자열로 들어온 경우를 위한 안전한 정수 변환
         try:
             if start_id is not None:
                 start_id = int(start_id)
@@ -45,19 +47,11 @@ async def websocket_endpoint(websocket: WebSocket):
             start_id = None
             end_id = None
 
-        # ✅ 리스트 형태 보정
         if isinstance(selected_days, str):
             selected_days = [s.strip() for s in selected_days.split(",") if s.strip()]
         if isinstance(exclude_keywords, str):
             exclude_keywords = [k.strip() for k in exclude_keywords.split(",") if k.strip()]
 
-        # ✅ 현재 수신 상태 로그
-        print("🧪 WebSocket 수신 파라미터:")
-        print(f"   use_full_range: {use_full_range} ({type(use_full_range)})")
-        print(f"   start_id: {start_id} ({type(start_id)})")
-        print(f"   end_id: {end_id} ({type(end_id)})")
-
-        # ✅ 비동기 크롤링 결과 전송
         async def send_result():
             for result in run_crawler_streaming(
                 session_cookie=session_cookie,
