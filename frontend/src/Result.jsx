@@ -1,15 +1,18 @@
+// ✅ result.jsx (자동 WebSocket 재접속 + 중복 캠페인 skip 유지)
+
 import { useState, useEffect, useRef } from "react";
-import { useNavigate, useLocation } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 
 export default function Result() {
   const navigate = useNavigate();
-  const location = useLocation();
   const [hiddenResults, setHiddenResults] = useState([]);
   const [publicResults, setPublicResults] = useState([]);
   const [filter, setFilter] = useState({ hidden: "", public: "" });
   const [status, setStatus] = useState("⏳ 데이터를 수신 중입니다...");
-  const socketRef = useRef(null);
+  const [retryCount, setRetryCount] = useState(0);
   const fetchedCsq = useRef(new Set());
+  const socketRef = useRef(null);
+  const reconnectTimeout = useRef(null);
 
   const getCsq = (row) => {
     const match = row.match(/csq=(\d+)/);
@@ -34,9 +37,7 @@ export default function Result() {
     const savedPublic = JSON.parse(localStorage.getItem("publicResults") || "[]");
     setHiddenResults(savedHidden);
     setPublicResults(savedPublic);
-    const allCsqs = [...savedHidden, ...savedPublic]
-      .map(getCsq)
-      .filter((csq) => csq);
+    const allCsqs = [...savedHidden, ...savedPublic].map(getCsq).filter((csq) => csq);
     fetchedCsq.current = new Set(allCsqs);
   }, []);
 
@@ -49,18 +50,13 @@ export default function Result() {
   }, [publicResults]);
 
   useEffect(() => {
-    const urlParams = new URLSearchParams(location.search);
+    const urlParams = new URLSearchParams(window.location.search);
     const session_cookie = urlParams.get("session_cookie");
     const selected_days = urlParams.get("selected_days");
     const exclude_keywords = urlParams.get("exclude_keywords") || "";
     const use_full_range = urlParams.get("use_full_range") === "true";
-    const start_id_raw = urlParams.get("start_id");
-    const end_id_raw = urlParams.get("end_id");
-
-    if (!session_cookie || !selected_days) {
-      setStatus("❌ 세션 정보 누락. 처음부터 다시 시도해주세요.");
-      return;
-    }
+    const start_id = urlParams.get("start_id");
+    const end_id = urlParams.get("end_id");
 
     const payload = {
       session_cookie,
@@ -70,61 +66,60 @@ export default function Result() {
       exclude_ids: Array.from(fetchedCsq.current),
     };
 
-    if (!use_full_range) {
-      if (!start_id_raw || !end_id_raw) {
-        setStatus("❌ 수동 범위가 누락되었습니다. App 화면에서 다시 설정해주세요.");
-        return;
-      }
-      const start_id = parseInt(start_id_raw);
-      const end_id = parseInt(end_id_raw);
-      if (isNaN(start_id) || isNaN(end_id) || start_id >= end_id) {
-        setStatus("❌ 유효하지 않은 캠페인 ID 범위입니다.");
-        return;
-      }
-      payload.start_id = start_id;
-      payload.end_id = end_id;
+    if (!use_full_range && start_id && end_id) {
+      payload.start_id = parseInt(start_id);
+      payload.end_id = parseInt(end_id);
     }
 
-    if (socketRef.current) {
-      socketRef.current.close();
-    }
+    const connectWebSocket = () => {
+      const socket = new WebSocket("wss://campaign-crawler-app.onrender.com/ws/crawl");
+      socketRef.current = socket;
 
-    const socket = new WebSocket("wss://campaign-crawler-app.onrender.com/ws/crawl");
-    socketRef.current = socket;
+      socket.onopen = () => {
+        setStatus("✅ 연결됨. 크롤링 시작 중...");
+        setRetryCount(0);
+        socket.send(JSON.stringify(payload));
+      };
 
-    socket.onopen = () => {
-      socket.send(JSON.stringify(payload));
-    };
+      socket.onmessage = (event) => {
+        const message = JSON.parse(event.data);
+        const { event: type, data } = message;
+        if (type === "hidden") {
+          setHiddenResults((prev) => insertUniqueSorted(prev, data));
+        } else if (type === "public") {
+          setPublicResults((prev) => insertUniqueSorted(prev, data));
+        } else if (type === "done") {
+          setStatus("✅ 데이터 수신 완료");
+          socket.close();
+        } else if (type === "error") {
+          setStatus("❌ 에러 발생: " + data);
+          socket.close();
+        }
+      };
 
-    socket.onmessage = (event) => {
-      const message = JSON.parse(event.data);
-      const { event: type, data } = message;
-
-      if (type === "hidden") {
-        setHiddenResults((prev) => insertUniqueSorted(prev, data));
-      } else if (type === "public") {
-        setPublicResults((prev) => insertUniqueSorted(prev, data));
-      } else if (type === "done") {
-        setStatus("✅ 데이터 수신 완료");
+      socket.onerror = () => {
+        setStatus("❌ 서버 오류. 다시 연결 시도 중...");
         socket.close();
-      } else if (type === "error") {
-        console.error("❌ 오류:", data);
-        setStatus("❌ 에러 발생: " + data);
-        socket.close();
-      }
+      };
+
+      socket.onclose = () => {
+        if (retryCount < 5) {
+          reconnectTimeout.current = setTimeout(() => {
+            setRetryCount((prev) => prev + 1);
+            connectWebSocket();
+          }, 2000);
+        } else {
+          setStatus("❌ 서버 재연결 실패. 새로고침 해주세요.");
+        }
+      };
     };
 
-    socket.onerror = (e) => {
-      console.error("❌ WebSocket 오류", e);
-      setStatus("❌ 서버 연결 오류");
+    connectWebSocket();
+    return () => {
+      if (socketRef.current) socketRef.current.close();
+      if (reconnectTimeout.current) clearTimeout(reconnectTimeout.current);
     };
-
-    socket.onclose = () => {
-      console.log("🔌 연결 종료됨");
-    };
-
-    return () => socket.close();
-  }, [location.search]);
+  }, []);
 
   const downloadTxt = (data, filename) => {
     const blob = new Blob([data.join("\n")], { type: "text/plain" });
@@ -155,30 +150,16 @@ export default function Result() {
           {title} ({filtered.length}건)
           <button
             onClick={() => downloadTxt(filtered, isHidden ? "숨김캠페인.txt" : "공개캠페인.txt")}
-            style={{
-              marginLeft: 12,
-              padding: "4px 10px",
-              fontSize: 14,
-              display: data.length > 0 ? "inline-block" : "none",
-            }}
-          >
-            📥 다운로드
-          </button>
+            style={{ marginLeft: 12, padding: "4px 10px", fontSize: 14 }}
+          >📥 다운로드</button>
         </h3>
-
         <input
           type="text"
           placeholder="🔎 필터링할 키워드를 입력하세요"
           value={keyword}
-          onChange={(e) =>
-            setFilter((prev) => ({
-              ...prev,
-              [isHidden ? "hidden" : "public"]: e.target.value,
-            }))
-          }
+          onChange={(e) => setFilter((prev) => ({ ...prev, [isHidden ? "hidden" : "public"]: e.target.value }))}
           style={{ marginBottom: 10, width: 300 }}
         />
-
         <table border="1" cellPadding="6" style={{ borderCollapse: "collapse", width: "100%" }}>
           <thead>
             <tr>
@@ -201,20 +182,7 @@ export default function Result() {
               const realIndex = data.findIndex((item) => item === row);
               return (
                 <tr key={csq + "_" + idx}>
-                  <td>
-                    <button
-                      onClick={() => handleDelete(realIndex)}
-                      style={{
-                        backgroundColor: "red",
-                        color: "white",
-                        border: "none",
-                        padding: "4px 8px",
-                        cursor: "pointer",
-                      }}
-                    >
-                      삭제
-                    </button>
-                  </td>
+                  <td><button onClick={() => handleDelete(realIndex)} style={{ backgroundColor: "red", color: "white" }}>삭제</button></td>
                   <td>{type}</td>
                   <td>{review}</td>
                   <td>{mall}</td>
@@ -222,9 +190,7 @@ export default function Result() {
                   <td>{point}</td>
                   <td>{time}</td>
                   <td>{name}</td>
-                  <td>
-                    <a href={url} target="_blank" rel="noreferrer">바로가기</a>
-                  </td>
+                  <td><a href={url} target="_blank" rel="noreferrer">바로가기</a></td>
                   <td>{csq}</td>
                 </tr>
               );
