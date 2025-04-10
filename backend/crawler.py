@@ -1,5 +1,3 @@
-# ✅ crawler.py (Streaming 방식 전용)
-
 import requests
 from bs4 import BeautifulSoup
 import re
@@ -47,9 +45,6 @@ def fetch_campaign_data(campaign_id, session, public_campaigns, selected_days, e
 
         product_name_tag = soup.find("h3")
         product_name = product_name_tag.text.strip().replace("&", "") if product_name_tag else "상품명 없음"
-
-        #print(f"🔍 캠페인 {campaign_id} 참여 시간: {participation_time}")
-        #print(f"🔍 상품명: {product_name}")
 
         day_match = re.search(r"(\d{2})일", participation_time)
         if not day_match or day_match.group(0) not in selected_days:
@@ -131,13 +126,15 @@ def run_crawler_streaming(session_cookie, selected_days, exclude_keywords, use_f
         return
 
     def task(cid):
-        return fetch_campaign_data(cid, session, public_campaigns, selected_days, exclude_keywords)
+        return cid, fetch_campaign_data(cid, session, public_campaigns, selected_days, exclude_keywords)
 
-    with ThreadPoolExecutor(max_workers=5) as executor:  # ✅ 병렬 처리
+    with ThreadPoolExecutor(max_workers=5) as executor:
         futures = {executor.submit(task, cid): cid for cid in range(start_id, end_id + 1)}
         for future in as_completed(futures):
             try:
-                result = future.result()
+                cid, result = future.result()
+                yield {"event": "progress", "data": cid}  # ✅ 무조건 카운트
+
                 if result:
                     h, p = result
                     if h:
