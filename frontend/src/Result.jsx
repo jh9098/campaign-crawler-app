@@ -44,66 +44,65 @@ export default function Result() {
   }, [publicResults]);
 
   useEffect(() => {
-    const urlParams = new URLSearchParams(window.location.search);
-    const session_cookie = urlParams.get("session_cookie");
-    const selected_days = urlParams.get("selected_days");
-    const exclude_keywords = urlParams.get("exclude_keywords") || "";
-    const use_full_range = urlParams.get("use_full_range") === "true";
-    const start_id = urlParams.get("start_id");
-    const end_id = urlParams.get("end_id");
+    setTimeout(() => {
+      const urlParams = new URLSearchParams(window.location.search);
+      const session_cookie = urlParams.get("session_cookie");
+      const selected_days = urlParams.get("selected_days");
+      const exclude_keywords = urlParams.get("exclude_keywords") || "";
+      const use_full_range = urlParams.get("use_full_range") === "true";
+      const start_id = urlParams.get("start_id");
+      const end_id = urlParams.get("end_id");
 
-    if (!session_cookie || !selected_days) {
-      setStatus("❌ 세션 정보 누락. 처음부터 다시 시도해주세요.");
-      return;
-    }
-
-    const socket = new WebSocket("wss://campaign-crawler-app.onrender.com/ws/crawl");
-    socketRef.current = socket;
-
-    socket.onopen = () => {
-      socket.send(
-        JSON.stringify({
-          session_cookie,
-          selected_days,
-          exclude_keywords,
-          use_full_range,
-          start_id: start_id ? parseInt(start_id) : undefined,
-          end_id: end_id ? parseInt(end_id) : undefined,
-        })
-      );
-    };
-
-    socket.onmessage = (event) => {
-      const message = JSON.parse(event.data);
-      const { event: type, data } = message;
-  
-      if (type === "hidden") {
-        setHiddenResults((prev) => insertUniqueSorted(prev, data));
-      } else if (type === "public") {
-        setPublicResults((prev) => insertUniqueSorted(prev, data));
-      } else if (type === "done") {
-        setStatus("✅ 데이터 수신 완료");
-        socket.close();
-      } else if (type === "error") {
-        console.error("❌ 오류:", data);
-        setStatus("❌ 에러 발생: " + data);
-        socket.close();
+      if (!session_cookie || !selected_days) {
+        setStatus("❌ 세션 정보 누락. 처음부터 다시 시도해주세요.");
+        return;
       }
-    };
 
-    socket.onerror = (e) => {
-      console.error("❌ WebSocket 오류", e);
-      setStatus("❌ 서버 연결 오류");
-    };
+      const socket = new WebSocket("wss://campaign-crawler-app.onrender.com/ws/crawl");
+      socketRef.current = socket;
 
-    socket.onclose = () => {
-      console.log("🔌 연결 종료됨");
-    };
+      socket.onopen = () => {
+        socket.send(
+          JSON.stringify({
+            session_cookie,
+            selected_days,
+            exclude_keywords,
+            use_full_range,
+            start_id: start_id ? parseInt(start_id) : undefined,
+            end_id: end_id ? parseInt(end_id) : undefined,
+          })
+        );
+      };
 
-    return () => socket.close();
+      socket.onmessage = (event) => {
+        const message = JSON.parse(event.data);
+        const { event: type, data } = message;
+
+        if (type === "hidden") {
+          setHiddenResults((prev) => insertUniqueSorted(prev, data));
+        } else if (type === "public") {
+          setPublicResults((prev) => insertUniqueSorted(prev, data));
+        } else if (type === "done") {
+          setStatus("✅ 데이터 수신 완료");
+          socket.close();
+        } else if (type === "error") {
+          console.error("❌ 오류:", data);
+          setStatus("❌ 에러 발생: " + data);
+          socket.close();
+        }
+      };
+
+      socket.onerror = (e) => {
+        console.error("❌ WebSocket 오류", e);
+        setStatus("❌ 서버 연결 오류");
+      };
+
+      socket.onclose = () => {
+        console.log("🔌 연결 종료됨");
+      };
+    }, 0);
   }, []);
 
-  // ✅ 진행률 퍼센트 표시
   useEffect(() => {
     if (totalCount > 0 && doneCount < totalCount) {
       const percent = Math.floor((doneCount / totalCount) * 100);
