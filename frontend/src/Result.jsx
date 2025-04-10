@@ -7,8 +7,8 @@ export default function Result() {
   const [publicResults, setPublicResults] = useState([]);
   const [filter, setFilter] = useState({ hidden: "", public: "" });
   const [status, setStatus] = useState("⏳ 데이터를 수신 중입니다...");
-  const [totalCount, setTotalCount] = useState(0); // ✅ 전체 캠페인 수
-  const [doneCount, setDoneCount] = useState(0);   // ✅ 완료된 캠페인 수
+  const [totalCount, setTotalCount] = useState(0);
+  const [doneCount, setDoneCount] = useState(0);
   const socketRef = useRef(null);
 
   const getCsq = (row) => {
@@ -72,10 +72,11 @@ export default function Result() {
         })
       );
     };
+
     socket.onmessage = (event) => {
       const message = JSON.parse(event.data);
       const { event: type, data } = message;
-    
+
       if (type === "init") {
         setTotalCount(data.total);
         setStatus("⏳ 데이터를 수신 중입니다... 0%");
@@ -94,6 +95,7 @@ export default function Result() {
         socket.close();
       }
     };
+
     socket.onerror = (e) => {
       console.error("❌ WebSocket 오류", e);
       setStatus("❌ 서버 연결 오류");
@@ -106,7 +108,7 @@ export default function Result() {
     return () => socket.close();
   }, []);
 
-  // ✅ 진행률 계산
+  // ✅ 진행률 퍼센트 표시
   useEffect(() => {
     if (totalCount > 0 && doneCount < totalCount) {
       const percent = Math.floor((doneCount / totalCount) * 100);
@@ -213,9 +215,7 @@ export default function Result() {
                   <td>{type}</td>
                   <td>{review}</td>
                   <td>{mall}</td>
-                  <td>
-                    {Number(price.replace(/[^\d]/g, "")).toLocaleString("ko-KR")}
-                  </td>
+                  <td>{Number(price.replace(/[^\d]/g, "")).toLocaleString("ko-KR")}</td>
                   <td>{point}</td>
                   <td>{time}</td>
                   <td>{name}</td>
