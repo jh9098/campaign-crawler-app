@@ -35,7 +35,6 @@ export default function Result() {
     const savedPublic = JSON.parse(localStorage.getItem("publicResults") || "[]");
     setHiddenResults(savedHidden);
     setPublicResults(savedPublic);
-    // 이미 저장된 CSQ 추출해서 중복 방지용 세트 초기화
     const allCsqs = [...savedHidden, ...savedPublic]
       .map(getCsq)
       .filter((csq) => csq);
@@ -56,29 +55,42 @@ export default function Result() {
     const selected_days = urlParams.get("selected_days");
     const exclude_keywords = urlParams.get("exclude_keywords") || "";
     const use_full_range = urlParams.get("use_full_range") === "true";
-    const start_id = urlParams.get("start_id");
-    const end_id = urlParams.get("end_id");
+    const start_id_raw = urlParams.get("start_id");
+    const end_id_raw = urlParams.get("end_id");
 
     if (!session_cookie || !selected_days) {
       setStatus("❌ 세션 정보 누락. 처음부터 다시 시도해주세요.");
       return;
     }
 
+    const payload = {
+      session_cookie,
+      selected_days,
+      exclude_keywords,
+      use_full_range,
+      exclude_ids: Array.from(fetchedCsq.current),
+    };
+
+    if (!use_full_range) {
+      if (!start_id_raw || !end_id_raw) {
+        setStatus("❌ 수동 범위가 누락되었습니다. App 화면에서 다시 설정해주세요.");
+        return;
+      }
+      const start_id = parseInt(start_id_raw);
+      const end_id = parseInt(end_id_raw);
+      if (isNaN(start_id) || isNaN(end_id) || start_id >= end_id) {
+        setStatus("❌ 유효하지 않은 캠페인 ID 범위입니다.");
+        return;
+      }
+      payload.start_id = start_id;
+      payload.end_id = end_id;
+    }
+
     const socket = new WebSocket("wss://campaign-crawler-app.onrender.com/ws/crawl");
     socketRef.current = socket;
 
     socket.onopen = () => {
-      socket.send(
-        JSON.stringify({
-          session_cookie,
-          selected_days,
-          exclude_keywords,
-          use_full_range,
-          start_id: start_id ? parseInt(start_id) : undefined,
-          end_id: end_id ? parseInt(end_id) : undefined,
-          exclude_ids: Array.from(fetchedCsq.current),
-        })
-      );
+      socket.send(JSON.stringify(payload));
     };
 
     socket.onmessage = (event) => {
