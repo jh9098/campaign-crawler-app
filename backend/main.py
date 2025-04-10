@@ -36,7 +36,6 @@ async def websocket_endpoint(websocket: WebSocket):
             exclude_keywords = [k.strip() for k in exclude_keywords.split(",") if k.strip()]
 
         async def send_results():
-            await asyncio.sleep(0.01)  # ✅ 핑 먼저 돌 수 있도록 짧은 대기
             for result in run_crawler_streaming(
                 session_cookie=session_cookie,
                 selected_days=selected_days,
