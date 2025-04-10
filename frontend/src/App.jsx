@@ -11,24 +11,21 @@ export default function App() {
   const [endId, setEndId] = useState(40100);
   const navigate = useNavigate();
 
-  const days = Array.from({ length: 31 }, (_, i) =>
-    `${String(i + 1).padStart(2, "0")}일`
-  );
+  const days = Array.from({ length: 31 }, (_, i) => `${String(i + 1).padStart(2, "0")}일`);
 
   useEffect(() => {
     const savedCookie = localStorage.getItem("last_cookie");
     const savedDays = JSON.parse(localStorage.getItem("last_days") || "[]");
     const savedExclude = localStorage.getItem("last_exclude");
-    const savedUseFullRange =
-      localStorage.getItem("last_use_full_range") === "true";
+    const savedUseFullRange = localStorage.getItem("last_use_full_range") === "true";
     const savedStartId = localStorage.getItem("last_start_id");
     const savedEndId = localStorage.getItem("last_end_id");
-  
+
     if (savedCookie) setCookie(savedCookie);
     if (savedDays.length > 0) setSelectedDays(savedDays);
     if (savedExclude) setExclude(savedExclude);
     setUseFullRange(savedUseFullRange);
-  
+
     // ✅ 수동 범위는 result 페이지 진입 시에만 적용
     if (window.location.pathname === "/result") {
       if (savedStartId) setStartId(Number(savedStartId));
@@ -43,6 +40,9 @@ export default function App() {
   };
 
   const handleSubmit = () => {
+    const manualStartId = Number(document.querySelector("#startId")?.value || "0");
+    const manualEndId = Number(document.querySelector("#endId")?.value || "0");
+
     if (!cookie) {
       alert("PHPSESSID를 입력해주세요.");
       return;
@@ -53,7 +53,7 @@ export default function App() {
       return;
     }
 
-    if (!useFullRange && startId >= endId) {
+    if (!useFullRange && manualStartId >= manualEndId) {
       alert("시작 ID가 끝 ID보다 작아야 합니다.");
       return;
     }
@@ -64,8 +64,8 @@ export default function App() {
     localStorage.setItem("last_days", JSON.stringify(selectedDays));
     localStorage.setItem("last_exclude", exclude);
     localStorage.setItem("last_use_full_range", String(useFullRange));
-    localStorage.setItem("last_start_id", String(startId));
-    localStorage.setItem("last_end_id", String(endId));
+    localStorage.setItem("last_start_id", String(manualStartId));
+    localStorage.setItem("last_end_id", String(manualEndId));
 
     const query = new URLSearchParams({
       session_cookie: cookie,
@@ -75,8 +75,8 @@ export default function App() {
     });
 
     if (!useFullRange) {
-      query.append("start_id", startId.toString());
-      query.append("end_id", endId.toString());
+      query.append("start_id", manualStartId.toString());
+      query.append("end_id", manualEndId.toString());
     }
 
     navigate(`/result?${query.toString()}`);
@@ -156,6 +156,7 @@ export default function App() {
           <label>시작 캠페인 ID:</label>
           <br />
           <input
+            id="startId"
             type="number"
             value={startId}
             onChange={(e) => setStartId(Number(e.target.value))}
@@ -165,6 +166,7 @@ export default function App() {
           <label>끝 캠페인 ID:</label>
           <br />
           <input
+            id="endId"
             type="number"
             value={endId}
             onChange={(e) => setEndId(Number(e.target.value))}
