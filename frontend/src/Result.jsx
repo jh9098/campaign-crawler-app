@@ -104,6 +104,7 @@ export default function Result() {
       };
 
       socket.onmessage = (event) => {
+        if (event.data === "ping") return; // 서버 keep-alive 응답 무시
         const message = JSON.parse(event.data);
         const { event: type, data } = message;
 
