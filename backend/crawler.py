@@ -13,7 +13,7 @@ def get_public_campaigns(session):
     print('[크롤링 실행] run_crawler_streaming() 진입')
     public_campaigns = set()
     for attempt in range(3):
-    print('[크롤링 실행] run_crawler_streaming() 진입')
+        print('[크롤링 실행] run_crawler_streaming() 진입')
         try:
             response = session.get(MAIN_URL, verify=False, timeout=10)
             response.raise_for_status()
@@ -36,7 +36,7 @@ def fetch_campaign_data(campaign_id, session, public_campaigns, selected_days, e
         soup = BeautifulSoup(response.text, "html.parser")
 
         if soup.find("script", string="window.location.href = '/usr/login_form';"):
-    print('[크롤링 실행] run_crawler_streaming() 진입')
+            print('[크롤링 실행] run_crawler_streaming() 진입')
             return None
 
         participation_time = soup.find("button", class_="butn butn-success", disabled=True)
@@ -55,11 +55,11 @@ def fetch_campaign_data(campaign_id, session, public_campaigns, selected_days, e
            soup.find("div", id="alert_msg", string="해당 캠페인은 참여가 불가능한 상태입니다.") or \
            soup.find("button", string="참여 가능 시간이 아닙니다") or \
            soup.find("button", string="캠페인 참여"):
-    print('[크롤링 실행] run_crawler_streaming() 진입')
+            print('[크롤링 실행] run_crawler_streaming() 진입')
             return None
 
         if any(keyword in product_name for keyword in exclude_keywords):
-    print('[크롤링 실행] run_crawler_streaming() 진입')
+            print('[크롤링 실행] run_crawler_streaming() 진입')
             return None
 
         price = "가격 정보 없음"
@@ -79,7 +79,7 @@ def fetch_campaign_data(campaign_id, session, public_campaigns, selected_days, e
 
         product_type = "상품구분 없음"
         for section in soup.find_all("div", class_="row col-sm4 col-12"):
-    print('[크롤링 실행] run_crawler_streaming() 진입')
+            print('[크롤링 실행] run_crawler_streaming() 진입')
             title = section.find("div", class_="col-6")
             value = section.find("div", style="text-align:right")
             if title and value and "배송" in title.text:
@@ -95,7 +95,7 @@ def fetch_campaign_data(campaign_id, session, public_campaigns, selected_days, e
 
         text_review = "포토 리뷰"
         if soup.find("label", string="텍스트 리뷰"):
-    print('[크롤링 실행] run_crawler_streaming() 진입')
+            print('[크롤링 실행] run_crawler_streaming() 진입')
             text_review = "텍스트 리뷰"
 
         if price != "가격 정보 없음":
@@ -134,7 +134,7 @@ def run_crawler_streaming(session_cookie, selected_days, exclude_keywords, use_f
         exclude_ids = set()
 
     for cid in range(start_id, end_id + 1):
-    print('[크롤링 실행] run_crawler_streaming() 진입')
+        print('[크롤링 실행] run_crawler_streaming() 진입')
         if cid in exclude_ids:
             continue
         result = fetch_campaign_data(cid, session, public_campaigns, selected_days, exclude_keywords)
