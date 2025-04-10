@@ -37,8 +37,20 @@ async def websocket_endpoint(websocket: WebSocket):
 
         # ✅ 크롤링 결과 전송 task
         async def send_results():
-            total_count = end_id - start_id + 1
+            if use_full_range:
+                public_campaigns = get_public_campaigns(session_cookie)
+                if not public_campaigns:
+                    await websocket.send_text(json.dumps({"event": "error", "data": "공개 캠페인 정보를 가져오지 못했습니다."}))
+                    return
+                total_count = max(public_campaigns) - min(public_campaigns) + 1
+            elif start_id is not None and end_id is not None:
+                total_count = end_id - start_id + 1
+            else:
+                await websocket.send_text(json.dumps({"event": "error", "data": "범위를 확인할 수 없습니다."}))
+                return
+        
             await websocket.send_text(json.dumps({"event": "init", "data": {"total": total_count}}))
+        
             for result in run_crawler_streaming(
                 session_cookie=session_cookie,
                 selected_days=selected_days,
