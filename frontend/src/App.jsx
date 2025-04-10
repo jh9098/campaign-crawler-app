@@ -1,5 +1,4 @@
 import { useState, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
 
 export default function App() {
   const [cookie, setCookie] = useState("");
@@ -9,7 +8,6 @@ export default function App() {
   const [useFullRange, setUseFullRange] = useState(true);
   const [startId, setStartId] = useState(40000);
   const [endId, setEndId] = useState(40100);
-  const navigate = useNavigate();
 
   const days = Array.from({ length: 31 }, (_, i) => `${String(i + 1).padStart(2, "0")}일`);
 
@@ -23,8 +21,6 @@ export default function App() {
     if (savedDays.length > 0) setSelectedDays(savedDays);
     if (savedExclude) setExclude(savedExclude);
     setUseFullRange(savedUseFullRange);
-
-    // ❌ 수동 범위는 URL 파라미터로 전달하므로, localStorage에서 불러오지 않음
   }, []);
 
   const toggleDay = (day) => {
@@ -54,7 +50,6 @@ export default function App() {
 
     setLoading(true);
 
-    // ✅ 설정 저장
     localStorage.setItem("last_cookie", cookie);
     localStorage.setItem("last_days", JSON.stringify(selectedDays));
     localStorage.setItem("last_exclude", exclude);
@@ -76,7 +71,8 @@ export default function App() {
       query.append("end_id", manualEndId.toString());
     }
 
-    navigate(`/result?${query.toString()}`);
+    // ✅ 완전한 새로고침 방식
+    window.location.href = `/result?${query.toString()}`;
   };
 
   return (
@@ -90,8 +86,7 @@ export default function App() {
         onChange={(e) => setCookie(e.target.value)}
         style={{ width: 300 }}
       />
-      <br />
-      <br />
+      <br /><br />
 
       <label>참여 날짜 선택 (다중 가능):</label>
       <br />
@@ -123,8 +118,7 @@ export default function App() {
         style={{ width: 300 }}
         placeholder="이발기, 강아지, 깔창 등"
       />
-      <br />
-      <br />
+      <br /><br />
 
       <label>캠페인 ID 범위 선택:</label>
       <br />
@@ -145,8 +139,7 @@ export default function App() {
         />
         수동 범위 입력
       </label>
-      <br />
-      <br />
+      <br /><br />
 
       {!useFullRange && (
         <>
@@ -158,8 +151,7 @@ export default function App() {
             value={startId}
             onChange={(e) => setStartId(Number(e.target.value))}
           />
-          <br />
-          <br />
+          <br /><br />
           <label>끝 캠페인 ID:</label>
           <br />
           <input
@@ -168,24 +160,13 @@ export default function App() {
             value={endId}
             onChange={(e) => setEndId(Number(e.target.value))}
           />
-          <br />
-          <br />
+          <br /><br />
         </>
       )}
 
       <button onClick={handleSubmit} disabled={loading}>
         {loading ? "⏳ 실행 중..." : "✅ 실시간 실행"}
       </button>
-
-      <button onClick={() => navigate("/result")} style={{ marginLeft: 10 }}>
-        📄 업로드 결과 보기
-      </button>
-
-      {loading && (
-        <div style={{ marginTop: 10 }}>
-          <p style={{ color: "green" }}>⏳ 페이지 이동 중...</p>
-        </div>
-      )}
     </div>
   );
 }
