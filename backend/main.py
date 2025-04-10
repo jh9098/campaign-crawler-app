@@ -1,6 +1,6 @@
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
-from crawler import run_crawler_streaming
+from crawler import run_crawler_streaming, get_public_campaigns  # get_public_campaigns 임포트 필요
 import json
 import asyncio
 
@@ -9,7 +9,7 @@ app = FastAPI()
 # ✅ CORS 설정
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["https://dbgapp.netlify.app"],  # 실제 배포된 프론트 주소
+    allow_origins=["https://dbgapp.netlify.app"],  # 당신의 실제 프론트 배포 주소
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -19,7 +19,7 @@ app.add_middleware(
 async def websocket_endpoint(websocket: WebSocket):
     await websocket.accept()
     try:
-        # ✅ 클라이언트에서 보낸 파라미터 수신
+        # ✅ 프론트에서 초기 파라미터 수신
         params = await websocket.receive_text()
         data = json.loads(params)
 
@@ -35,22 +35,28 @@ async def websocket_endpoint(websocket: WebSocket):
         if isinstance(exclude_keywords, str):
             exclude_keywords = [k.strip() for k in exclude_keywords.split(",") if k.strip()]
 
+        # ✅ 진행률 계산용 total_count 계산
+        if use_full_range:
+            session = requests.Session()
+            session.cookies.set("PHPSESSID", session_cookie)
+            public_campaigns = get_public_campaigns(session)
+            if not public_campaigns:
+                await websocket.send_text(json.dumps({"event": "error", "data": "공개 캠페인 정보를 가져오지 못했습니다."}))
+                return
+            start_id = min(public_campaigns)
+            end_id = max(public_campaigns)
+            total_count = end_id - start_id + 1
+        elif start_id is not None and end_id is not None:
+            total_count = end_id - start_id + 1
+        else:
+            await websocket.send_text(json.dumps({"event": "error", "data": "범위를 확인할 수 없습니다."}))
+            return
+
+        # ✅ totalCount 전송 (진행률 계산용)
+        await websocket.send_text(json.dumps({"event": "init", "data": {"total": total_count}}))
+
         # ✅ 크롤링 결과 전송 task
         async def send_results():
-            if use_full_range:
-                public_campaigns = get_public_campaigns(session_cookie)
-                if not public_campaigns:
-                    await websocket.send_text(json.dumps({"event": "error", "data": "공개 캠페인 정보를 가져오지 못했습니다."}))
-                    return
-                total_count = max(public_campaigns) - min(public_campaigns) + 1
-            elif start_id is not None and end_id is not None:
-                total_count = end_id - start_id + 1
-            else:
-                await websocket.send_text(json.dumps({"event": "error", "data": "범위를 확인할 수 없습니다."}))
-                return
-        
-            await websocket.send_text(json.dumps({"event": "init", "data": {"total": total_count}}))
-        
             for result in run_crawler_streaming(
                 session_cookie=session_cookie,
                 selected_days=selected_days,
