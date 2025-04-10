@@ -28,10 +28,17 @@ async def websocket_endpoint(websocket: WebSocket):
         start_id = data.get("start_id")
         end_id = data.get("end_id")
 
+        # ✅ 문자열로 들어온 경우 보정
         if isinstance(selected_days, str):
             selected_days = [s.strip() for s in selected_days.split(",") if s.strip()]
         if isinstance(exclude_keywords, str):
             exclude_keywords = [k.strip() for k in exclude_keywords.split(",") if k.strip()]
+
+        # ✅ 테스트용 로그 출력
+        print("🧪 WebSocket 수신 파라미터:")
+        print(f"   use_full_range: {use_full_range} ({type(use_full_range)})")
+        print(f"   start_id: {start_id} ({type(start_id)})")
+        print(f"   end_id: {end_id} ({type(end_id)})")
 
         async def send_result():
             for result in run_crawler_streaming(
