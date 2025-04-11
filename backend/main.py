@@ -1,4 +1,4 @@
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Request
 from fastapi.middleware.cors import CORSMiddleware
 from crawler import run_crawler_streaming
 import json
@@ -15,9 +15,9 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# 세션 쿠키별 연결 그룹과 태스크 관리
-active_sessions = {}  # { session_cookie: [websocket1, websocket2, ...] }
-ongoing_tasks = {}    # { session_cookie: asyncio.Task }
+active_sessions = {}  # session_cookie: [websocket, websocket, ...]
+ongoing_tasks = {}    # session_cookie: asyncio.Task
+session_results = {}  # session_cookie: {"hidden": [...], "public": [...], "all": set()}
 
 @app.websocket("/ws/crawl")
 async def websocket_endpoint(websocket: WebSocket):
@@ -34,18 +34,25 @@ async def websocket_endpoint(websocket: WebSocket):
         end_id = data.get("end_id")
         exclude_ids = set(map(int, data.get("exclude_ids", [])))
 
-        # 문자열 처리
         if isinstance(selected_days, str):
             selected_days = [s.strip() for s in selected_days.split(",") if s.strip()]
         if isinstance(exclude_keywords, str):
             exclude_keywords = [k.strip() for k in exclude_keywords.split(",") if k.strip()]
 
-        # 그룹 등록
+        if session_cookie not in session_results:
+            session_results[session_cookie] = {"hidden": [], "public": [], "all": set()}
+
         if session_cookie not in active_sessions:
             active_sessions[session_cookie] = []
         active_sessions[session_cookie].append(websocket)
 
-        # 작업이 없다면 시작
+        # 새로 접속한 클라이언트에게 이전 결과 먼저 전송
+        for h in session_results[session_cookie]["hidden"]:
+            await websocket.send_text(json.dumps({"event": "hidden", "data": h}))
+        for p in session_results[session_cookie]["public"]:
+            await websocket.send_text(json.dumps({"event": "public", "data": p}))
+
+        # 크롤링 태스크가 없으면 시작
         if session_cookie not in ongoing_tasks:
             task = asyncio.create_task(
                 stream_to_all_clients(session_cookie, {
@@ -60,18 +67,16 @@ async def websocket_endpoint(websocket: WebSocket):
             )
             ongoing_tasks[session_cookie] = task
 
-        # 연결 유지 (ping 대기)
         while True:
-            await websocket.receive_text()
+            try:
+                await asyncio.wait_for(websocket.receive_text(), timeout=20)
+            except asyncio.TimeoutError:
+                await websocket.send_text("ping")
 
     except WebSocketDisconnect:
-        print("❌ 연결 끊김")
-    finally:
         if session_cookie in active_sessions:
-            if websocket in active_sessions[session_cookie]:
-                active_sessions[session_cookie].remove(websocket)
+            active_sessions[session_cookie].remove(websocket)
             if not active_sessions[session_cookie]:
-                # 해당 세션 모두 종료되면 작업 취소
                 task = ongoing_tasks.pop(session_cookie, None)
                 if task:
                     task.cancel()
@@ -79,21 +84,41 @@ async def websocket_endpoint(websocket: WebSocket):
 
 async def stream_to_all_clients(session_cookie: str, data: dict):
     print(f"🚀 크롤링 시작: {session_cookie} @ {datetime.now()}")
+    results = session_results[session_cookie]
     try:
         async for result in run_crawler_streaming(**data):
-            msg = json.dumps(result)
-            receivers = active_sessions.get(session_cookie, [])
-            for ws in receivers:
+            data_str = result.get("data")
+            csq = None
+            if data_str:
+                csq_match = next((x for x in data_str.split(" & ") if "csq=" in x), None)
+                if csq_match:
+                    try:
+                        csq = int(csq_match.split("csq=")[-1])
+                    except:
+                        csq = None
+
+            if csq and csq in results["all"]:
+                continue  # 중복 방지
+            if csq:
+                results["all"].add(csq)
+
+            if result["event"] == "hidden":
+                results["hidden"].append(data_str)
+            elif result["event"] == "public":
+                results["public"].append(data_str)
+
+            for ws in active_sessions.get(session_cookie, []):
                 try:
-                    await ws.send_text(msg)
+                    await ws.send_text(json.dumps(result))
                 except:
                     continue
-        # 완료 메시지 전송
+
         for ws in active_sessions.get(session_cookie, []):
             try:
                 await ws.send_text(json.dumps({"event": "done", "data": "크롤링 완료"}))
             except:
                 pass
+
     except asyncio.CancelledError:
         print(f"🛑 크롤링 중단: {session_cookie}")
     except Exception as e:
@@ -102,3 +127,10 @@ async def stream_to_all_clients(session_cookie: str, data: dict):
                 await ws.send_text(json.dumps({"event": "error", "data": str(e)}))
             except:
                 pass
+
+@app.get("/api/results")
+async def get_saved_results(session_cookie: str):
+    data = session_results.get(session_cookie)
+    if not data:
+        return {"status": "not_found", "message": "결과가 없습니다"}
+    return {"status": "ok", "hidden": data["hidden"], "public": data["public"]}
