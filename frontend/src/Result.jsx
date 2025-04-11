@@ -1,5 +1,3 @@
-// ✅ result.jsx (진행률 표시 + 자동 다운로드 + Clear 버튼)
-
 import { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 
@@ -104,7 +102,7 @@ export default function Result() {
       };
 
       socket.onmessage = (event) => {
-        if (event.data === "ping") return; // 서버 keep-alive 응답 무시
+        if (event.data === "ping") return;
         const message = JSON.parse(event.data);
         const { event: type, data } = message;
 
@@ -130,7 +128,7 @@ export default function Result() {
       };
 
       socket.onerror = () => {
-        setStatus("❌ 서버 오류. 다시 연결 시도 중...");
+        setStatus("❌ 서버 오류. 저장된 결과를 불러옵니다...");
         socket.close();
       };
 
@@ -141,7 +139,18 @@ export default function Result() {
             connectWebSocket();
           }, 2000);
         } else {
-          setStatus("❌ 서버 재연결 실패. 새로고침 해주세요.");
+          // 🔁 서버 재연결 실패 시 저장된 결과 API fallback
+          fetch(`/api/results?session_cookie=${session_cookie}`)
+            .then((res) => res.json())
+            .then((data) => {
+              if (data.status === "ok") {
+                setHiddenResults(data.hidden);
+                setPublicResults(data.public);
+                setStatus("📦 저장된 결과를 불러왔습니다");
+              } else {
+                setStatus("❌ 저장된 결과가 없습니다");
+              }
+            });
         }
       };
     };
