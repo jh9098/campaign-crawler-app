@@ -1,4 +1,3 @@
-
 import { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 
@@ -11,7 +10,7 @@ export default function Result() {
   const [retryCount, setRetryCount] = useState(0);
   const [progress, setProgress] = useState(null);
   const [range, setRange] = useState({ start: null, end: null });
-  const [manualClose, setManualClose] = useState(false); // ✅ 수동 종료 여부
+  const manualClose = useRef(false); // ✅ useRef로 변경
   const socketRef = useRef(null);
   const reconnectTimeout = useRef(null);
   const fetchedCsq = useRef(new Set());
@@ -94,7 +93,7 @@ export default function Result() {
       });
 
     return () => {
-      setManualClose(true); // ✅ cleanup 시 수동 종료로 간주
+      manualClose.current = true; // ✅ 종료 시 재연결 차단
       if (socketRef.current) socketRef.current.close();
       if (reconnectTimeout.current) clearTimeout(reconnectTimeout.current);
     };
@@ -142,7 +141,7 @@ export default function Result() {
     };
 
     socket.onclose = () => {
-      if (!manualClose && retryCount < 5) {
+      if (!manualClose.current && retryCount < 5) {
         reconnectTimeout.current = setTimeout(() => {
           setRetryCount((prev) => prev + 1);
           connectWebSocket(session_cookie, payload);
@@ -233,12 +232,10 @@ export default function Result() {
         <button
           style={{ marginLeft: 10, backgroundColor: "#ddd" }}
           onClick={() => {
-            setManualClose(true); // ✅ 재연결 방지 플래그
-            if (socketRef.current) {
-              socketRef.current.close();
-              socketRef.current = null;
-              setStatus("🔌 연결 강제 종료됨");
-            }
+            manualClose.current = true; // ✅ 여기!
+            socketRef.current.close();
+            socketRef.current = null;
+            setStatus("🔌 연결 강제 종료됨");
           }}
         >
           🔌 연결 강제 종료
@@ -250,10 +247,3 @@ export default function Result() {
     </div>
   );
 }
-
-
----
-
-이제 “🔌 연결 강제 종료”를 눌렀을 경우, 절대 재접속되지 않으며 상태도 "🔌 연결 강제 종료됨"으로 유지돼.
-테스트해보고 더 필요한 개선이 있으면 언제든 말해!
-
