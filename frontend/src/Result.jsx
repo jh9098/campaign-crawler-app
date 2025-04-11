@@ -76,28 +76,34 @@ export default function Result() {
       setRange({ start: parseInt(start_id), end: parseInt(end_id) });
     }
 
-    fetch(`/api/results?session_cookie=${session_cookie}`)
-      .then((res) => res.json())
-      .then((data) => {
-        if (data.status === "ok") {
-          setHiddenResults(data.hidden);
-          setPublicResults(data.public);
-          const allCsqs = [...data.hidden, ...data.public].map(getCsq).filter(Boolean);
-          fetchedCsq.current = new Set(allCsqs);
-          setStatus(realtime ? "📦 저장된 결과 불러옴, 실시간 연결 중..." : "📦 저장된 결과 불러왔습니다");
-        } else {
-          setStatus("❌ 저장된 결과가 없습니다");
-        }
-
-        if (realtime) connectWebSocket(session_cookie, payload);
-      });
-
-    return () => {
-      manualClose.current = true; // ✅ 종료 시 재연결 차단
-      if (socketRef.current) socketRef.current.close();
-      if (reconnectTimeout.current) clearTimeout(reconnectTimeout.current);
-    };
-  }, []);
+    fetch(`https://campaign-crawler-app.onrender.com/api/results?session_cookie=${session_cookie}`)
+        .then((res) => {
+          if (!res.ok) throw new Error("API 응답 오류");
+          return res.json();
+        })
+        .then((data) => {
+          if (data.status === "ok") {
+            setHiddenResults(data.hidden);
+            setPublicResults(data.public);
+            const allCsqs = [...data.hidden, ...data.public].map(getCsq).filter(Boolean);
+            fetchedCsq.current = new Set(allCsqs);
+            setStatus(realtime ? "📦 저장된 결과 불러옴, 실시간 연결 중..." : "📦 저장된 결과 불러왔습니다");
+          } else {
+            setStatus("❌ 저장된 결과가 없습니다");
+          }
+    
+          if (realtime) connectWebSocket(session_cookie, payload);
+        })
+        .catch((err) => {
+          setStatus("❌ API 호출 실패: " + err.message);
+        });
+    
+      return () => {
+        manualClose.current = true;
+        if (socketRef.current) socketRef.current.close();
+        if (reconnectTimeout.current) clearTimeout(reconnectTimeout.current);
+      };
+    }, []);
 
   const connectWebSocket = (session_cookie, payload) => {
     const socket = new WebSocket("wss://campaign-crawler-app.onrender.com/ws/crawl");
