@@ -237,6 +237,19 @@ export default function Result() {
       <h2>📡 실시간 크롤링 결과</h2>
       <p style={{ color: "green" }}>{status} {progress !== null && `(${progress}%)`}</p>
       <button onClick={() => navigate("/")}>🔙 처음으로</button>
+      <button
+        style={{ marginLeft: 10, backgroundColor: "#ddd", padding: "4px 10px" }}
+        onClick={() => {
+          if (socketRef.current) {
+            socketRef.current.close();
+            socketRef.current = null;
+            setStatus("🔌 수동 종료됨 (다시 연결하려면 새로고침)");
+          }
+        }}
+      >
+        🔌 연결 강제 종료
+      </button>
+      
       <button onClick={clearResults} style={{ marginLeft: 10, color: "red" }}>🗑 Clear</button>
       <br /><br />
       {renderTable(hiddenResults, "🔒 숨겨진 캠페인", true)}
