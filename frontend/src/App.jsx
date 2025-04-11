@@ -170,10 +170,23 @@ export default function App() {
         {loading ? "⏳ 실행 중..." : "✅ 실시간 실행"}
       </button>
 
-      {/* ✅ 업로드 결과 보기 버튼 복원 */}
       <button
         style={{ marginLeft: 10 }}
-        onClick={() => window.location.href = "/result"}
+        onClick={() => {
+          const query = new URLSearchParams({
+            session_cookie: cookie,
+            selected_days: selectedDays.join(","),
+            exclude_keywords: exclude,
+            use_full_range: useFullRange.toString(),
+          });
+      
+          if (!useFullRange) {
+            query.append("start_id", startId.toString());
+            query.append("end_id", endId.toString());
+          }
+      
+          window.location.href = `/result?${query.toString()}`;
+        }}
       >
         📄 업로드 결과 보기
       </button>
