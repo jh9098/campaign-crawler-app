@@ -169,6 +169,16 @@ export default function App() {
       <button onClick={handleSubmit} disabled={loading}>
         {loading ? "⏳ 실행 중..." : "✅ 실시간 실행"}
       </button>
+      <button
+        style={{ marginLeft: 10, backgroundColor: "#eee", padding: "4px 10px" }}
+        onClick={() => {
+          localStorage.removeItem("hiddenResults");
+          localStorage.removeItem("publicResults");
+          alert("🔌 연결 상태 초기화됨. 결과보기에 이전 데이터가 남아 있지 않습니다.");
+        }}
+      >
+        🔌 Render 연결 초기화
+      </button>
 
       <button
         style={{ marginLeft: 10 }}
