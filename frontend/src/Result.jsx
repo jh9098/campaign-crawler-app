@@ -1,3 +1,4 @@
+
 import { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 
@@ -6,10 +7,11 @@ export default function Result() {
   const [hiddenResults, setHiddenResults] = useState([]);
   const [publicResults, setPublicResults] = useState([]);
   const [filter, setFilter] = useState({ hidden: "", public: "" });
-  const [status, setStatus] = useState("⏳ 데이터를 수신 중입니다...");
+  const [status, setStatus] = useState("⏳ 결과를 불러오는 중...");
   const [retryCount, setRetryCount] = useState(0);
   const [progress, setProgress] = useState(null);
   const [range, setRange] = useState({ start: null, end: null });
+  const [manualClose, setManualClose] = useState(false); // ✅ 수동 종료 여부
   const socketRef = useRef(null);
   const reconnectTimeout = useRef(null);
   const fetchedCsq = useRef(new Set());
@@ -32,32 +34,6 @@ export default function Result() {
     });
   };
 
-  useEffect(() => {
-    const savedHidden = JSON.parse(localStorage.getItem("hiddenResults") || "[]");
-    const savedPublic = JSON.parse(localStorage.getItem("publicResults") || "[]");
-    setHiddenResults(savedHidden);
-    setPublicResults(savedPublic);
-    const allCsqs = [...savedHidden, ...savedPublic].map(getCsq).filter((csq) => csq);
-    fetchedCsq.current = new Set(allCsqs);
-  }, []);
-
-  useEffect(() => {
-    localStorage.setItem("hiddenResults", JSON.stringify(hiddenResults));
-  }, [hiddenResults]);
-
-  useEffect(() => {
-    localStorage.setItem("publicResults", JSON.stringify(publicResults));
-  }, [publicResults]);
-
-  const clearResults = () => {
-    localStorage.removeItem("hiddenResults");
-    localStorage.removeItem("publicResults");
-    setHiddenResults([]);
-    setPublicResults([]);
-    fetchedCsq.current = new Set();
-    setProgress(null);
-  };
-
   const downloadTxt = (data, filename) => {
     const blob = new Blob([data.join("\n")], { type: "text/plain" });
     const url = URL.createObjectURL(blob);
@@ -68,6 +44,15 @@ export default function Result() {
     URL.revokeObjectURL(url);
   };
 
+  const clearResults = () => {
+    localStorage.removeItem("hiddenResults");
+    localStorage.removeItem("publicResults");
+    setHiddenResults([]);
+    setPublicResults([]);
+    fetchedCsq.current = new Set();
+    setProgress(null);
+  };
+
   useEffect(() => {
     const urlParams = new URLSearchParams(window.location.search);
     const session_cookie = urlParams.get("session_cookie");
@@ -76,6 +61,7 @@ export default function Result() {
     const use_full_range = urlParams.get("use_full_range") === "true";
     const start_id = urlParams.get("start_id");
     const end_id = urlParams.get("end_id");
+    const realtime = urlParams.get("realtime") !== "false";
 
     const payload = {
       session_cookie,
@@ -91,76 +77,81 @@ export default function Result() {
       setRange({ start: parseInt(start_id), end: parseInt(end_id) });
     }
 
-    const connectWebSocket = () => {
-      const socket = new WebSocket("wss://campaign-crawler-app.onrender.com/ws/crawl");
-      socketRef.current = socket;
-
-      socket.onopen = () => {
-        setStatus("✅ 연결됨. 크롤링 시작 중...");
-        setRetryCount(0);
-        socket.send(JSON.stringify(payload));
-      };
-
-      socket.onmessage = (event) => {
-        if (event.data === "ping") return;
-        const message = JSON.parse(event.data);
-        const { event: type, data } = message;
-
-        if (type === "hidden") {
-          setHiddenResults((prev) => insertUniqueSorted(prev, data));
-        } else if (type === "public") {
-          setPublicResults((prev) => insertUniqueSorted(prev, data));
-        } else if (type === "done") {
-          setStatus("✅ 데이터 수신 완료");
-          socket.close();
-          if (hiddenResults.length > 0) downloadTxt(hiddenResults, "숨김캠페인.txt");
-          if (publicResults.length > 0) downloadTxt(publicResults, "공개캠페인.txt");
-        } else if (type === "error") {
-          setStatus("❌ 에러 발생: " + data);
-          socket.close();
-        }
-
-        const csq = getCsq(data);
-        if (csq && range.start && range.end) {
-          const percent = Math.floor(((parseInt(csq) - range.start) / (range.end - range.start)) * 100);
-          setProgress(percent);
-        }
-      };
-
-      socket.onerror = () => {
-        setStatus("❌ 서버 오류. 저장된 결과를 불러옵니다...");
-        socket.close();
-      };
-
-      socket.onclose = () => {
-        if (retryCount < 5) {
-          reconnectTimeout.current = setTimeout(() => {
-            setRetryCount((prev) => prev + 1);
-            connectWebSocket();
-          }, 2000);
+    fetch(`/api/results?session_cookie=${session_cookie}`)
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.status === "ok") {
+          setHiddenResults(data.hidden);
+          setPublicResults(data.public);
+          const allCsqs = [...data.hidden, ...data.public].map(getCsq).filter(Boolean);
+          fetchedCsq.current = new Set(allCsqs);
+          setStatus(realtime ? "📦 저장된 결과 불러옴, 실시간 연결 중..." : "📦 저장된 결과 불러왔습니다");
         } else {
-          // 🔁 서버 재연결 실패 시 저장된 결과 API fallback
-          fetch(`/api/results?session_cookie=${session_cookie}`)
-            .then((res) => res.json())
-            .then((data) => {
-              if (data.status === "ok") {
-                setHiddenResults(data.hidden);
-                setPublicResults(data.public);
-                setStatus("📦 저장된 결과를 불러왔습니다");
-              } else {
-                setStatus("❌ 저장된 결과가 없습니다");
-              }
-            });
+          setStatus("❌ 저장된 결과가 없습니다");
         }
-      };
-    };
 
-    connectWebSocket();
+        if (realtime) connectWebSocket(session_cookie, payload);
+      });
+
     return () => {
+      setManualClose(true); // ✅ cleanup 시 수동 종료로 간주
       if (socketRef.current) socketRef.current.close();
       if (reconnectTimeout.current) clearTimeout(reconnectTimeout.current);
     };
   }, []);
+
+  const connectWebSocket = (session_cookie, payload) => {
+    const socket = new WebSocket("wss://campaign-crawler-app.onrender.com/ws/crawl");
+    socketRef.current = socket;
+
+    socket.onopen = () => {
+      setStatus("✅ 실시간 연결됨. 수신 중...");
+      setRetryCount(0);
+      socket.send(JSON.stringify(payload));
+    };
+
+    socket.onmessage = (event) => {
+      if (event.data === "ping") return;
+      const message = JSON.parse(event.data);
+      const { event: type, data } = message;
+
+      if (type === "hidden") {
+        setHiddenResults((prev) => insertUniqueSorted(prev, data));
+      } else if (type === "public") {
+        setPublicResults((prev) => insertUniqueSorted(prev, data));
+      } else if (type === "done") {
+        setStatus("✅ 데이터 수신 완료");
+        socket.close();
+        downloadTxt(hiddenResults, "숨김캠페인.txt");
+        downloadTxt(publicResults, "공개캠페인.txt");
+      } else if (type === "error") {
+        setStatus("❌ 에러 발생: " + data);
+        socket.close();
+      }
+
+      const csq = getCsq(data);
+      if (csq && range.start && range.end) {
+        const percent = Math.floor(((parseInt(csq) - range.start) / (range.end - range.start)) * 100);
+        setProgress(percent);
+      }
+    };
+
+    socket.onerror = () => {
+      setStatus("❌ 서버 오류. 연결 종료");
+      socket.close();
+    };
+
+    socket.onclose = () => {
+      if (!manualClose && retryCount < 5) {
+        reconnectTimeout.current = setTimeout(() => {
+          setRetryCount((prev) => prev + 1);
+          connectWebSocket(session_cookie, payload);
+        }, 2000);
+      } else {
+        setStatus("🔌 연결이 종료되었습니다");
+      }
+    };
+  };
 
   const renderTable = (data, title, isHidden) => {
     const keyword = isHidden ? filter.hidden : filter.public;
@@ -237,23 +228,32 @@ export default function Result() {
       <h2>📡 실시간 크롤링 결과</h2>
       <p style={{ color: "green" }}>{status} {progress !== null && `(${progress}%)`}</p>
       <button onClick={() => navigate("/")}>🔙 처음으로</button>
-      <button
-        style={{ marginLeft: 10, backgroundColor: "#ddd", padding: "4px 10px" }}
-        onClick={() => {
-          if (socketRef.current) {
-            socketRef.current.close();
-            socketRef.current = null;
-            setStatus("🔌 수동 종료됨 (다시 연결하려면 새로고침)");
-          }
-        }}
-      >
-        🔌 연결 강제 종료
-      </button>
-      
       <button onClick={clearResults} style={{ marginLeft: 10, color: "red" }}>🗑 Clear</button>
+      {socketRef.current && (
+        <button
+          style={{ marginLeft: 10, backgroundColor: "#ddd" }}
+          onClick={() => {
+            setManualClose(true); // ✅ 재연결 방지 플래그
+            if (socketRef.current) {
+              socketRef.current.close();
+              socketRef.current = null;
+              setStatus("🔌 연결 강제 종료됨");
+            }
+          }}
+        >
+          🔌 연결 강제 종료
+        </button>
+      )}
       <br /><br />
       {renderTable(hiddenResults, "🔒 숨겨진 캠페인", true)}
       {renderTable(publicResults, "🌐 공개 캠페인", false)}
     </div>
   );
 }
+
+
+---
+
+이제 “🔌 연결 강제 종료”를 눌렀을 경우, 절대 재접속되지 않으며 상태도 "🔌 연결 강제 종료됨"으로 유지돼.
+테스트해보고 더 필요한 개선이 있으면 언제든 말해!
+
